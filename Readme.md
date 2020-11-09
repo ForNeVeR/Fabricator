@@ -22,6 +22,25 @@ Also, Fabricator is portable across the platforms supported by .NET Core: both
 the control machine and any of the nodes across the cluster may run any
 supported operating systems.
 
+Detailed Workflow
+-----------------
+Whenever the user wants to apply their changes to the cluster, they may, for
+each device:
+
+- run the Fabricator-created binary locally on that device (via `dotnet run`, if
+  .NET SDK is installed, or via other means)
+- upload the Fabricator-created binary to a remove host and run there, providing
+  the runtime for it (if required)
+- make Fabricator to upload the binary (essentially cloning itself to a remote
+  host) and run via the runtime already existing on the host
+
+Usually, .NET SDK should only be available locally, and shouldn't be necessary
+on remote.
+
+When Fabricator is started on a remote host, it should be able to identify the
+host and required actions. It could do that either by passing command-line
+argument to itself, or by reading the hostname (if available).
+
 [andivionian-status-classifier]: https://github.com/ForNeVeR/andivionian-status-classifier#status-zero-
 [powershell-dsc]: https://docs.microsoft.com/en-us/powershell/scripting/dsc/getting-started/wingettingstarted
 [propellor]: http://propellor.branchable.com/
