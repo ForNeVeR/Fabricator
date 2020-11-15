@@ -29,8 +29,8 @@ each device:
 
 - run the Fabricator-created binary locally on that device (via `dotnet run`, if
   .NET SDK is installed, or via other means)
-- upload the Fabricator-created binary to a remove host and run there, providing
-  the runtime for it (if required)
+- upload the host-specific Fabricator-created package to a remote host and run
+  there, providing the runtime for it (if required)
 - make Fabricator to upload the binary (essentially cloning itself to a remote
   host) and run via the runtime already existing on the host
 
