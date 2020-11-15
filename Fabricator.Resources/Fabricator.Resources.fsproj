@@ -1,17 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <OutputType>Exe</OutputType>
         <TargetFramework>net5.0</TargetFramework>
-        <IsPackable>false</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="Program.fs" />
+        <Compile Include="File.fs" />
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Fabricator.Console\Fabricator.Console.fsproj" />
       <ProjectReference Include="..\Fabricator.Core\Fabricator.Core.fsproj" />
     </ItemGroup>
 
