@@ -17,6 +17,13 @@ EndProjectSection
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Fabricator.Tests", "Fabricator.Tests\Fabricator.Tests.fsproj", "{4B40B277-8315-454E-8D16-641B0629A710}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{D2647A8A-C20B-40A0-A716-24BCCEB1F158}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{A94F5545-DDF1-4F27-AA2E-A738C8551E57}"
+ProjectSection(SolutionItems) = preProject
+	.github\workflows\main.yml = .github\workflows\main.yml
+EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -66,5 +73,8 @@ Global
 		{4B40B277-8315-454E-8D16-641B0629A710}.Release|x64.Build.0 = Release|Any CPU
 		{4B40B277-8315-454E-8D16-641B0629A710}.Release|x86.ActiveCfg = Release|Any CPU
 		{4B40B277-8315-454E-8D16-641B0629A710}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A94F5545-DDF1-4F27-AA2E-A738C8551E57} = {D2647A8A-C20B-40A0-A716-24BCCEB1F158}
 	EndGlobalSection
 EndGlobal
