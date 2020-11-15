@@ -8,4 +8,8 @@
         <Compile Include="EntryPoint.fs" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\Fabricator.Core\Fabricator.Core.fsproj" />
+    </ItemGroup>
+
 </Project>

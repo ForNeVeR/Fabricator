@@ -1,7 +1,23 @@
 ﻿module Fabricator.Example
 
+open System.IO
+
 open Fabricator.Console
+open Fabricator.Core
+open Fabricator.Resources.File
+
+let private cluster = [|
+    {
+        Designator = Designators.currentMachine
+        Resources = [|
+            FileResource(
+                ContentFile "data/file.txt",
+                Path.Combine(Path.GetTempPath(), "Fabricator.Example/file.txt")
+            )
+        |]
+    }
+|]
 
 [<EntryPoint>]
 let main(args: string[]): int =
-    EntryPoint.main args
+    EntryPoint.main args cluster
