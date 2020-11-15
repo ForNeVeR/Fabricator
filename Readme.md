@@ -18,9 +18,9 @@ Fabricator calls with your code if you want to.
 Fabricator offers a DSL and a set of tasks to configure the cluster, everything
 is available via NuGet and easily extendable.
 
-Also, Fabricator is portable across the platforms supported by .NET Core: both
-the control machine and any of the nodes across the cluster may run any
-supported operating systems.
+Also, Fabricator is portable across the platforms supported by .NET: both the
+control machine and any of the nodes across the cluster may run any supported
+operating systems.
 
 Detailed Workflow
 -----------------
@@ -41,7 +41,36 @@ When Fabricator is started on a remote host, it should be able to identify the
 host and required actions. It could do that either by passing command-line
 argument to itself, or by reading the hostname (if available).
 
+Developer Documentation
+-----------------------
+
+### Prerequisites
+Fabricator requires [.NET 5 (or later) SDK][dotnet-sdk] for development.
+
+### Build
+To build the project (while automatically restoring the dependencies, if
+necessary), execute the following command:
+
+```console
+$ dotnet build
+```
+
+### Test
+To run the automatic test suite, execute the following command:
+
+```console
+$ dotnet test
+```
+
+### Pack
+To pack the artifacts for uploading onto NuGet, execute the following command:
+
+```console
+$ dotnet pack
+```
+
 [andivionian-status-classifier]: https://github.com/ForNeVeR/andivionian-status-classifier#status-zero-
+[dotnet-sdk]: http://dot.net/
 [powershell-dsc]: https://docs.microsoft.com/en-us/powershell/scripting/dsc/getting-started/wingettingstarted
 [propellor]: http://propellor.branchable.com/
 
