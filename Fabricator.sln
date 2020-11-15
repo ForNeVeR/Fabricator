@@ -15,6 +15,8 @@ ProjectSection(SolutionItems) = preProject
 	Readme.md = Readme.md
 EndProjectSection
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Fabricator.Tests", "Fabricator.Tests\Fabricator.Tests.fsproj", "{4B40B277-8315-454E-8D16-641B0629A710}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -52,5 +54,17 @@ Global
 		{8990DD0B-495C-4128-8793-9229F3F54531}.Release|x64.Build.0 = Release|Any CPU
 		{8990DD0B-495C-4128-8793-9229F3F54531}.Release|x86.ActiveCfg = Release|Any CPU
 		{8990DD0B-495C-4128-8793-9229F3F54531}.Release|x86.Build.0 = Release|Any CPU
+		{4B40B277-8315-454E-8D16-641B0629A710}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4B40B277-8315-454E-8D16-641B0629A710}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4B40B277-8315-454E-8D16-641B0629A710}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4B40B277-8315-454E-8D16-641B0629A710}.Debug|x64.Build.0 = Debug|Any CPU
+		{4B40B277-8315-454E-8D16-641B0629A710}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4B40B277-8315-454E-8D16-641B0629A710}.Debug|x86.Build.0 = Debug|Any CPU
+		{4B40B277-8315-454E-8D16-641B0629A710}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4B40B277-8315-454E-8D16-641B0629A710}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4B40B277-8315-454E-8D16-641B0629A710}.Release|x64.ActiveCfg = Release|Any CPU
+		{4B40B277-8315-454E-8D16-641B0629A710}.Release|x64.Build.0 = Release|Any CPU
+		{4B40B277-8315-454E-8D16-641B0629A710}.Release|x86.ActiveCfg = Release|Any CPU
+		{4B40B277-8315-454E-8D16-641B0629A710}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
