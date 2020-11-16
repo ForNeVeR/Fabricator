@@ -1,4 +1,4 @@
-﻿module Fabricator.Resources.File
+﻿module Fabricator.Resources.Files
 
 open System
 open System.IO

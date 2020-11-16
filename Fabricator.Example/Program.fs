@@ -4,7 +4,7 @@ open System.IO
 
 open Fabricator.Console
 open Fabricator.Core
-open Fabricator.Resources.File
+open Fabricator.Resources.Files
 
 let private cluster = [|
     {
