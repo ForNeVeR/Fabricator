@@ -8,7 +8,7 @@ open Fabricator.Resources.Files
 
 let private cluster = [|
     {
-        Designator = Designators.currentMachine
+        Designator = Designators.fromConnectionsFile "connections.json" "localhost"
         Resources = [|
             FileResource(
                 ContentFile "data/file.txt",

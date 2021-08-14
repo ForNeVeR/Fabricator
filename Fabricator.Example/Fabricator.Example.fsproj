@@ -8,6 +8,7 @@
 
     <ItemGroup>
         <Compile Include="Program.fs" />
+        <Content Include="connections.json" />
     </ItemGroup>
 
     <ItemGroup>
