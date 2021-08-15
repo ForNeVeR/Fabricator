@@ -9,9 +9,15 @@ type IMachineDesignator =
     abstract member PresentableName: string
     abstract member IsCurrentMachine: bool
 
+type MachineType =
+    | Linux = 0
+    | Windows = 1
+
 type Machine = {
+    Name: string
     Designator: IMachineDesignator
     Resources: IResource seq
+    Type: MachineType
 }
 
 module Designators =

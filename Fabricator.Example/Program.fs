@@ -8,6 +8,7 @@ open Fabricator.Resources.Files
 
 let private cluster = [|
     {
+        Name = "localhost"
         Designator = Designators.fromConnectionsFile "connections.json" "localhost"
         Resources = [|
             FileResource(
@@ -15,6 +16,7 @@ let private cluster = [|
                 Path.Combine(Path.GetTempPath(), "Fabricator.Example/file.txt")
             )
         |]
+        Type = MachineType.Windows
     }
 |]
 

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net5.0</TargetFramework>
@@ -7,9 +7,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="Console\EntryPointTests.fs" />
-        <Compile Include="Core\DesignatorTests.fs" />
-        <Compile Include="Resources\FileTests.fs" />
+        <Compile Include="TestFramework\TestOutputWriter.fs" />
+        <Compile Include="Console\CommandTests.fs" />
     </ItemGroup>
 
     <ItemGroup>
@@ -23,9 +22,9 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Fabricator.Console\Fabricator.Console.fsproj" />
-      <ProjectReference Include="..\Fabricator.Core\Fabricator.Core.fsproj" />
-      <ProjectReference Include="..\Fabricator.Resources\Fabricator.Resources.fsproj" />
+        <ProjectReference Include="..\Fabricator.Console\Fabricator.Console.fsproj" />
+        <ProjectReference Include="..\Fabricator.Core\Fabricator.Core.fsproj" />
+        <ProjectReference Include="..\Fabricator.Resources\Fabricator.Resources.fsproj" />
     </ItemGroup>
 
 </Project>

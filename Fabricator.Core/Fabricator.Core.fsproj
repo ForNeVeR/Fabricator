@@ -8,6 +8,7 @@
         <Compile Include="IResource.fs" />
         <Compile Include="Machine.fs" />
         <Compile Include="FrameworkUtil.fs" />
+        <Compile Include="FileSystem.fs" />
         <Compile Include="AssemblyInfo.fs" />
     </ItemGroup>
 

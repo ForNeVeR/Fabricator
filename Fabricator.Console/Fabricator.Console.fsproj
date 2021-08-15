@@ -5,11 +5,18 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <Compile Include="Arguments.fs" />
+        <Compile Include="Commands.fs" />
         <Compile Include="EntryPoint.fs" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\Fabricator.Core\Fabricator.Core.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Argu" Version="6.1.1" />
+      <PackageReference Include="MedallionShell" Version="1.6.2" />
     </ItemGroup>
 
 </Project>
