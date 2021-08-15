@@ -1,6 +1,7 @@
 ﻿module Fabricator.Console.EntryPoint
 
 open System
+
 open Argu
 
 open Fabricator.Console.Arguments
