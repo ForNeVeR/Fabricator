@@ -21,7 +21,8 @@ type CommandTests(output: ITestOutputHelper) =
             |> Option.get
         let exampleDirectory = Path.Combine(slnDirectory, "Fabricator.Example")
         let publishDirectory = Path.Combine(exampleDirectory, "publish")
-        Directory.Delete(publishDirectory, recursive = true)
+        if Directory.Exists publishDirectory then
+            Directory.Delete(publishDirectory, recursive = true)
 
         upcast task {
             use writer = new TestOutputWriter(output)
