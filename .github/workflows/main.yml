@@ -33,5 +33,9 @@ jobs:
           key: ${{ runner.os }}.nuget.${{ hashFiles('**/*.fsproj') }}
       - name: Build
         run: dotnet build
-      - name: Test
+      - name: Run unit tests
         run: dotnet test
+        working-directory: Fabricator.Tests
+      - name: Run integration tests
+        run: dotnet test
+        working-directory: Fabricator.IntegrationTests
