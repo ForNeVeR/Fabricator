@@ -6,6 +6,7 @@
 
     <ItemGroup>
         <Compile Include="Files.fs" />
+        <Compile Include="Docker.fs" />
     </ItemGroup>
 
     <ItemGroup>
