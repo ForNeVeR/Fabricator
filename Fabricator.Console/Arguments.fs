@@ -13,7 +13,9 @@ type BuildCommandArguments =
 [<RequireQualifiedAccess>]
 type Command =
     | [<CliPrefix(CliPrefix.None)>] Build of ParseResults<BuildCommandArguments>
+    | [<CliPrefix(CliPrefix.None)>] Verify of ParseResults<BuildCommandArguments>
     interface IArgParserTemplate with
         member command.Usage =
             match command with
             | Build _ -> "build the agent prepared for deployment to the target machine."
+            | Verify _ -> "verify the deployment."

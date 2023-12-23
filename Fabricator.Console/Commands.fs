@@ -54,3 +54,7 @@ let build (machine: Machine) (startDirectory: string): Async<unit> = async {
 
     printfn $"Successfully published project to directory \"{publishDirectory}\"."
 }
+
+let verify (machine: Machine) (startDirectory: string): Async<unit> = async {
+    failwith "TODO"
+}
