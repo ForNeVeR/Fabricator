@@ -14,7 +14,7 @@
 
     <ItemGroup>
       <PackageReference Include="FSharp.SystemTextJson" Version="0.17.4" />
-      <PackageReference Include="System.Text.Json" Version="5.0.2" />
+      <PackageReference Include="System.Text.Json" Version="8.0.4" />
     </ItemGroup>
 
 </Project>
