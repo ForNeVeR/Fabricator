@@ -4,57 +4,68 @@
 
 module Fabricator.Console.Commands
 
-open System
-open System.IO
-
-open Medallion.Shell
-
 open Fabricator.Core
 
-let private findBuildRoot startDirectory =
-    let result = FileSystem.findNearestDirectoryWithFile [| "*.fsproj"; "*.csproj" |] startDirectory
-    match result with
-    | Some r -> r
-    | None -> failwith $"Could not find any sln files in any of the root directories of path \"{startDirectory}\"."
+let private checkIfApplied(resource: IResource) = async {
+    try
+        let! result = resource.AlreadyApplied()
+        return Result.Ok result
+    with
+        | error -> return Result.Error error
+}
 
-let private getRuntime machine =
-    match machine.Type with
-    | MachineType.Linux -> "linux-x64"
-    | MachineType.Windows -> "win-x64"
-    | x -> failwith $"Unknown machine type for machine {machine.Name}: {x}."
+let private applyResource(resource: IResource) = async {
+    try
+        do! resource.Apply()
+        return Result.Ok(())
+    with
+        | error -> return Result.Error error
+}
 
-let build (machine: Machine) (startDirectory: string): Async<unit> = async {
-    printfn $"Building agent for machine {machine.Name}."
-    let buildRoot = findBuildRoot startDirectory
-    printfn $"Found project in directory \"{buildRoot}\"."
+let apply(resources: IResource seq): Async<bool> = async {
+    printfn "Applying changes to the current environment."
 
-    let publishDirectory = Path.Combine(buildRoot, "publish")
-    let executable = "dotnet"
-    let arguments = [|
-        "publish"
-        "--runtime"; getRuntime machine
-        "--configuration"; "Release"
-        "--output"; publishDirectory
-        "-p:PublishTrimmed=true"
-        "-p:PublishSingleFile=true"
-    |]
-    let stringifiedArguments =
-        String.Join(
-            ", ",
-            arguments
-            |> Seq.map(fun a -> $"\"{a}\"")
-        )
-    printfn $"Running executable \"{executable}\" with arguments [{stringifiedArguments}]."
+    let mutable success = true
+    for resource in resources do
+        if success then
 
-    let buildCommand =
-        Command.Run(
-            executable,
-            arguments |> Seq.cast,
-            fun (opts: Shell.Options) -> opts.WorkingDirectory(buildRoot) |> ignore)
-            .RedirectTo(Console.Out)
-            .RedirectStandardErrorTo(Console.Error)
-    let! buildResult = Async.AwaitTask buildCommand.Task
-    if buildResult.ExitCode <> 0 then failwith $"Build command returned an exit code {buildResult.ExitCode}."
+            printf $"{resource.PresentableName}: "
+            let! applied = checkIfApplied resource
+            match applied with
+            | Ok true -> printfn "already applied."
+            | Ok false ->
+                printfn "applying… "
 
-    printfn $"Successfully published project to directory \"{publishDirectory}\"."
+                let! result = applyResource resource
+                match result with
+                | Result.Ok _ ->
+                    printf "applied."
+                | Result.Error e ->
+                    success <- false
+                    printfn $"error:\n{e}"
+            | Error e ->
+                success <- false
+                printfn $"error:\n{e}"
+
+    return success
+}
+
+type CheckStatus = AllApplied | NotAllApplied | CheckError
+let check(resources: IResource seq): Async<CheckStatus> = async {
+    printfn "Applying changes to the current environment."
+
+    let mutable result = AllApplied
+    for resource in resources do
+        printf $"{resource.PresentableName}: "
+        let! applied = checkIfApplied resource
+        match applied with
+        | Ok true -> printfn "already applied."
+        | Ok false ->
+            printfn "not applied."
+            if result = AllApplied then result <- NotAllApplied
+        | Error e ->
+            result <- CheckError
+            printfn $"error:\n{e}"
+
+    return result
 }

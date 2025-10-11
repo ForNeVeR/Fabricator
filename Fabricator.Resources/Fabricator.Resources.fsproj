@@ -12,10 +12,19 @@ SPDX-License-Identifier: MIT
 
     <ItemGroup>
         <Compile Include="Files.fs" />
+        <Compile Include="Hash.fs" />
+        <Compile Include="Downloads.fs" />
+        <Compile Include="Archive.fs" />
+        <Compile Include="WindowsServices.fs" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\Fabricator.Core\Fabricator.Core.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="TruePath" Version="1.10.0" />
+      <PackageReference Include="TruePath.SystemIo" Version="1.10.0" />
     </ItemGroup>
 
 </Project>

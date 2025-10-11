@@ -4,36 +4,29 @@
 
 module Fabricator.Console.EntryPoint
 
-open System
-
-open Argu
-
-open Fabricator.Console.Arguments
+open Fabricator.Console.Commands
 open Fabricator.Core
 
 module ExitCodes =
     let Success = 0
     let InvalidArgs = 1
     let ExecutionError = 2
+    let NotAllApplied = 3
 
 let private printUsage() =
-    printfn "Usage:"
+    printfn "Arguments"
+    printfn "apply - applies the resources to the current environment"
+    printfn "check - checks and shows the upcoming changes to the current environment, no actions taken"
 
 /// Performs tasks on passed cluster according to the passed arguments
-let main (args: string[]) (cluster: Machine seq): int =
-    let parser = ArgumentParser.Create<Command>()
-    match parser.ParseCommandLine(args, raiseOnUsage = false) with
-    | x when args.Length = 0 || x.IsUsageRequested ->
-        printf $"{parser.PrintUsage()}"
-        ExitCodes.InvalidArgs
-    | command ->
-        match command.GetSubCommand() with
-        | Command.Build buildOptions ->
-            let machineName = buildOptions.GetResult BuildCommandArguments.MachineName
-            match Seq.tryFind(fun m -> m.Name = machineName) cluster with
-            | Some machine ->
-                Async.RunSynchronously(Commands.build machine Environment.CurrentDirectory)
-                ExitCodes.Success
-            | None ->
-                eprintfn $"Machine with name {machineName} was not found in cluster."
-                ExitCodes.ExecutionError
+let main (args: string[]) (resources: IResource seq): int =
+    match args with
+    | [|"apply"|] ->
+        if Async.RunSynchronously(Commands.apply resources) then ExitCodes.Success else ExitCodes.ExecutionError
+    | [|"check"|] ->
+        match Async.RunSynchronously(Commands.check resources) with
+        | AllApplied -> ExitCodes.Success
+        | NotAllApplied -> ExitCodes.NotAllApplied
+        | CheckError -> ExitCodes.ExecutionError
+    | [|"--help"|] -> printUsage(); ExitCodes.Success
+    | _ -> printUsage(); ExitCodes.InvalidArgs

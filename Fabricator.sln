@@ -35,8 +35,6 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Fabricator.Resources", "Fab
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Fabricator.Core", "Fabricator.Core\Fabricator.Core.fsproj", "{80263F7D-DD2D-4565-B084-3FB194862C53}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Fabricator.IntegrationTests", "Fabricator.IntegrationTests\Fabricator.IntegrationTests.fsproj", "{DBFEB20B-C966-401A-A8B9-41787A57850E}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LICENSES", "LICENSES", "{3FD3BD1B-B32F-481C-A7E2-27DFE4C13647}"
 	ProjectSection(SolutionItems) = preProject
 		LICENSES\MIT.txt = LICENSES\MIT.txt
@@ -120,18 +118,6 @@ Global
 		{80263F7D-DD2D-4565-B084-3FB194862C53}.Release|x64.Build.0 = Release|Any CPU
 		{80263F7D-DD2D-4565-B084-3FB194862C53}.Release|x86.ActiveCfg = Release|Any CPU
 		{80263F7D-DD2D-4565-B084-3FB194862C53}.Release|x86.Build.0 = Release|Any CPU
-		{DBFEB20B-C966-401A-A8B9-41787A57850E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{DBFEB20B-C966-401A-A8B9-41787A57850E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{DBFEB20B-C966-401A-A8B9-41787A57850E}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{DBFEB20B-C966-401A-A8B9-41787A57850E}.Debug|x64.Build.0 = Debug|Any CPU
-		{DBFEB20B-C966-401A-A8B9-41787A57850E}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{DBFEB20B-C966-401A-A8B9-41787A57850E}.Debug|x86.Build.0 = Debug|Any CPU
-		{DBFEB20B-C966-401A-A8B9-41787A57850E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{DBFEB20B-C966-401A-A8B9-41787A57850E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{DBFEB20B-C966-401A-A8B9-41787A57850E}.Release|x64.ActiveCfg = Release|Any CPU
-		{DBFEB20B-C966-401A-A8B9-41787A57850E}.Release|x64.Build.0 = Release|Any CPU
-		{DBFEB20B-C966-401A-A8B9-41787A57850E}.Release|x86.ActiveCfg = Release|Any CPU
-		{DBFEB20B-C966-401A-A8B9-41787A57850E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A94F5545-DDF1-4F27-AA2E-A738C8551E57} = {D2647A8A-C20B-40A0-A716-24BCCEB1F158}

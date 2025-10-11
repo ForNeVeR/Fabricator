@@ -8,6 +8,8 @@ open System
 open System.IO
 
 open Fabricator.Core
+open TruePath
+open TruePath.SystemIo
 
 type FileSource =
     | ContentFile of relativePath: string
@@ -58,3 +60,26 @@ type FileResource(source: FileSource, targetAbsolutePath: string) =
             let! content = getContent source
             do! writeAllBytesAsync targetAbsolutePath content
         }
+
+let createDirectory(path: AbsolutePath): IResource =
+    { new IResource with
+        member this.PresentableName = $"Directory \"{path.Value}\""
+        member this.AlreadyApplied() = async {
+            return path.ExistsDirectory()
+        }
+        member this.Apply() = async {
+            path.CreateDirectory()
+        }
+    }
+
+let ensureFileExists(path: AbsolutePath): IResource =
+    { new IResource with
+        member this.PresentableName = $"File \"{path.Value}\""
+        member this.AlreadyApplied() = async {
+            return false
+        }
+        member this.Apply() = async {
+            if path.ReadKind() <> Nullable FileEntryKind.File then
+                failwithf $"File \"{path}\" does not exist."
+        }
+    }
