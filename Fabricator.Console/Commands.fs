@@ -34,12 +34,12 @@ let apply(resources: IResource seq): Async<bool> = async {
             match applied with
             | Ok true -> printfn "already applied."
             | Ok false ->
-                printfn "applying… "
+                printf "applying… "
 
                 let! result = applyResource resource
                 match result with
                 | Result.Ok _ ->
-                    printf "applied."
+                    printfn "applied."
                 | Result.Error e ->
                     success <- false
                     printfn $"error:\n{e}"

@@ -83,8 +83,26 @@ module private rec Native =
         LPCWSTR | null lpPassword
     )
 
+    [<DllImport("Advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)>]
+    extern BOOL StartServiceW(SC_HANDLE hService, DWORD dwNumServiceArgs, voidptr lpServiceArgVectors)
+
     [<Literal>]
     let SC_MANAGER_CONNECT = 0x0001u
+
+    [<Literal>]
+    let SC_MANAGER_CREATE_SERVICE  = 0x0002u
+
+    [<Literal>]
+    let SERVICE_STOP = 0x0020u
+
+    [<Literal>]
+    let SERVICE_QUERY_STATUS = 0x0004u
+
+    [<Literal>]
+    let DELETE = 0x10000u
+
+    [<Literal>]
+    let SERVICE_START = 0x0010u
 
     [<Literal>]
     let ERROR_SERVICE_DOES_NOT_EXIST = 0x424
@@ -110,6 +128,9 @@ module private rec Native =
     [<Literal>]
     let SERVICE_ERROR_NORMAL = 0x00000001u
 
+    [<Literal>]
+    let ERROR_SERVICE_NOT_ACTIVE = 0x426
+
 type WindowsServiceInfo = {
     AccountName: string | null
     CommandLine: string
@@ -117,23 +138,23 @@ type WindowsServiceInfo = {
 
 open Native
 
-let private WithServiceHandle name action =
-    use serviceManager = OpenSCManagerW(null, null, SC_MANAGER_CONNECT)
+let private WithServiceHandle name access action =
+    use serviceManager = OpenSCManagerW(null, null, access)
     if serviceManager.IsInvalid then raise <| Win32Exception()
     else
 
-    use service = OpenServiceW(serviceManager, name, SC_MANAGER_CONNECT)
+    use service = OpenServiceW(serviceManager, name, access)
     if service.IsInvalid then
         action(Result.Error <| Marshal.GetLastWin32Error())
     else
         action(Result.Ok service)
 
-let private WithServiceHandleAsync name action = async {
-    use serviceManager = OpenSCManagerW(null, null, SC_MANAGER_CONNECT)
+let private WithServiceHandleAsync name access action = async {
+    use serviceManager = OpenSCManagerW(null, null, access)
     if serviceManager.IsInvalid then raise <| Win32Exception()
     else
 
-    use service = OpenServiceW(serviceManager, name, SC_MANAGER_CONNECT)
+    use service = OpenServiceW(serviceManager, name, access)
     if service.IsInvalid then
         return! action(Result.Error <| Marshal.GetLastWin32Error())
     else
@@ -141,7 +162,7 @@ let private WithServiceHandleAsync name action = async {
 }
 
 let GetService(name: string): WindowsServiceInfo option =
-    WithServiceHandle name (fun service ->
+    WithServiceHandle name SC_MANAGER_CONNECT (fun service ->
         match service with
         | Result.Error ERROR_SERVICE_DOES_NOT_EXIST -> None
         | Result.Error other -> raise <| Win32Exception other
@@ -192,20 +213,26 @@ let private waitForStop service = async {
 }
 
 let StopService(name: string): Async<unit> =
-    WithServiceHandleAsync name (fun service -> async {
+    let access = SC_MANAGER_CONNECT ||| SERVICE_STOP ||| SERVICE_QUERY_STATUS
+    WithServiceHandleAsync name access (fun service -> async {
         match service with
         | Result.Error e -> raise <| Win32Exception e
         | Result.Ok service ->
 
         let mutable serviceStatus = SERVICE_STATUS()
-        let success = ControlService(service, SERVICE_CONTROL_STOP, &serviceStatus)
-        if not success then raise <| Win32Exception()
+        let requestSuccessful = ControlService(service, SERVICE_CONTROL_STOP, &serviceStatus)
+        if not requestSuccessful then
+            match Marshal.GetLastWin32Error() with
+            | ERROR_SERVICE_NOT_ACTIVE -> ()
+            | other -> raise <| Win32Exception other
 
-        do! waitForStop service
+        if requestSuccessful then
+            do! waitForStop service
     })
 
 let rec DeleteService(name: string): unit =
-    WithServiceHandle name (fun service ->
+    let access = SC_MANAGER_CONNECT ||| DELETE
+    WithServiceHandle name access (fun service ->
         match service with
         | Result.Error ERROR_SERVICE_DOES_NOT_EXIST -> ()
         | Result.Error e -> raise <| Win32Exception e
@@ -216,7 +243,7 @@ let rec DeleteService(name: string): unit =
     )
 
 let CreateService(name: string, info: WindowsServiceInfo): unit =
-    use serviceManager = OpenSCManagerW(null, null, SC_MANAGER_CONNECT)
+    use serviceManager = OpenSCManagerW(null, null, SC_MANAGER_CONNECT ||| SC_MANAGER_CREATE_SERVICE)
     if serviceManager.IsInvalid then raise <| Win32Exception()
     else
 
@@ -224,7 +251,7 @@ let CreateService(name: string, info: WindowsServiceInfo): unit =
         serviceManager,
         name,
         null,
-        SC_MANAGER_CONNECT,
+        SC_MANAGER_CONNECT ||| SC_MANAGER_CREATE_SERVICE,
         SERVICE_WIN32_OWN_PROCESS,
         SERVICE_AUTO_START,
         SERVICE_ERROR_NORMAL,
@@ -236,3 +263,14 @@ let CreateService(name: string, info: WindowsServiceInfo): unit =
         null
     )
     if service.IsInvalid then raise <| Win32Exception()
+
+let StartService(name: string): unit =
+    let access = SC_MANAGER_CONNECT ||| SERVICE_START
+    WithServiceHandle name access (fun service ->
+        match service with
+        | Result.Error e -> raise <| Win32Exception e
+        | Result.Ok service ->
+
+        let success = StartServiceW(service, 0u, IntPtr.Zero.ToPointer())
+        if not success then raise <| Win32Exception()
+    )

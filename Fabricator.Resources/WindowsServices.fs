@@ -20,5 +20,6 @@ type WindowsServices =
                     WindowsServiceManager.DeleteService name
 
                 WindowsServiceManager.CreateService(name, { AccountName = account; CommandLine = commandLine })
+                WindowsServiceManager.StartService name
             }
         }

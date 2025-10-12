@@ -17,10 +17,10 @@ open TruePath
 
 // Updatable parameters:
 let readeckVersion = "0.20.3"
-let readeckHash = Sha256 ""
+let readeckHash = Sha256 "BF9DDAA5541D59FC57243FDE4340FC5A2393456E13A2C2C150686943B24C1BE1"
 
 let shawlVersion = "1.7.0"
-let shawlHash = Sha256 ""
+let shawlHash = Sha256 "EAA4FED710E844CC7968FDB82E816D406ED89C4486AB34C3E5DB2DA7E5927923"
 
 // Calculated parameters:
 let fileName(uri: Uri) = Path.GetFileName uri.LocalPath
@@ -70,6 +70,7 @@ let installReadeckService = [
             "--log-dir"; shawlLogDir.Value
             "--"
             readeckExecutable.Value
+            "serve"
         ]
     )
 ]
