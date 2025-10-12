@@ -21,7 +21,7 @@ SPDX-License-Identifier: MIT
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Argu" Version="6.1.1" />
+      <PackageReference Include="Argu" Version="6.2.5" />
       <PackageReference Include="MedallionShell" Version="1.6.2" />
     </ItemGroup>
 
