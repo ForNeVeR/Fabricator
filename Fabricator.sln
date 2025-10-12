@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26124.0
@@ -35,6 +35,11 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LICENSES", "LICENSES", "{3FD3BD1B-B32F-481C-A7E2-27DFE4C13647}"
 	ProjectSection(SolutionItems) = preProject
 		LICENSES\MIT.txt = LICENSES\MIT.txt
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{CD7AD0A8-AAC9-4C9D-B1CC-74F5DCE91436}"
+	ProjectSection(SolutionItems) = preProject
+		scripts\github-actions.fsx = scripts\github-actions.fsx
 	EndProjectSection
 EndProject
 Global

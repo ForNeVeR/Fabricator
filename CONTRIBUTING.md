@@ -58,6 +58,15 @@ $ pwsh -c "Install-Module VerifyEncoding -Repository PSGallery -RequiredVersion 
 
 The `-AutoFix` switch will automatically fix the encoding issues, and you'll only need to commit and push the changes.
 
+GitHub Actions
+--------------
+If you want to update the GitHub Actions used in the project, edit the file that generated them: `scripts/github-actions.fsx`.
+
+Then run the following shell command:
+```console
+$ dotnet fsi scripts/github-actions.fsx
+```
+
 [dotnet-sdk]: http://dot.net/
 [powershell]: https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell
 [reuse]: https://reuse.software/
