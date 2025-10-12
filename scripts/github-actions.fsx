@@ -55,7 +55,7 @@ let workflows = [
                     "ubuntu-22.04"
                     "windows-2022"
                 ]
-            ])
+            ], failFast = false)
             step(
                 name = "Build",
                 run = "dotnet build"
