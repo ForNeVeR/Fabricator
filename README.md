@@ -64,7 +64,7 @@ This script will make sure there's an executable `C:\Programs\shawl\shawl.exe` d
 
 Prerequisites
 -------------
-To work with Fabricator, you'll need [.NET SDK][dotnet-sdk] 5.0 or later.
+To work with Fabricator, you'll need [.NET SDK][dotnet-sdk] 9.0 or later.
 
 Documentation
 -------------

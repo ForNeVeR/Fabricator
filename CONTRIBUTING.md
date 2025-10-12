@@ -8,7 +8,7 @@ Contributor Guide
 =================
 
 ### Prerequisites
-Fabricator requires [.NET 5 (or later) SDK][dotnet-sdk] for development.
+Fabricator requires [.NET SDK][dotnet-sdk] version 9.0 or later for development.
 
 ### Build
 To build the project (while automatically restoring the dependencies, if
