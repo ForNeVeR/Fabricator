@@ -1,4 +1,4 @@
-﻿module Fabricator.Console.EntryPoint
+module Fabricator.Console.EntryPoint
 
 open System
 

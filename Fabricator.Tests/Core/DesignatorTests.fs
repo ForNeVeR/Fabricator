@@ -1,4 +1,4 @@
-﻿module Fabricator.Tests.MachineTests
+module Fabricator.Tests.MachineTests
 
 open System.IO
 

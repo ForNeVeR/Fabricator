@@ -1,4 +1,4 @@
-﻿module Fabricator.Core.FrameworkUtil
+module Fabricator.Core.FrameworkUtil
 
 open System.IO
 open System.Reflection

@@ -1,4 +1,4 @@
-﻿namespace Fabricator.IntegrationTests.Console
+namespace Fabricator.IntegrationTests.Console
 
 open System
 open System.IO

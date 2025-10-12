@@ -1,4 +1,4 @@
-﻿module Fabricator.Core.FileSystem
+module Fabricator.Core.FileSystem
 
 open System.IO
 

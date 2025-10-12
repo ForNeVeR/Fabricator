@@ -1,4 +1,4 @@
-﻿namespace Fabricator.Console.Arguments
+namespace Fabricator.Console.Arguments
 
 open Argu
 

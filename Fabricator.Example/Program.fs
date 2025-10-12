@@ -1,4 +1,4 @@
-﻿module Fabricator.Example
+module Fabricator.Example
 
 open System.IO
 

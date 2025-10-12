@@ -1,4 +1,4 @@
-﻿module Fabricator.Console.Commands
+module Fabricator.Console.Commands
 
 open System
 open System.IO

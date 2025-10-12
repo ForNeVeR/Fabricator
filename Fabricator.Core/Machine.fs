@@ -1,4 +1,4 @@
-﻿namespace Fabricator.Core
+namespace Fabricator.Core
 
 open System.Collections.Generic
 open System.IO

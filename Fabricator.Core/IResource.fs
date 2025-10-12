@@ -1,4 +1,4 @@
-﻿namespace Fabricator.Core
+namespace Fabricator.Core
 
 type IResource =
     abstract member PresentableName: string

@@ -1,4 +1,4 @@
-﻿module Fabricator.Tests.Resources.FileTests
+module Fabricator.Tests.Resources.FileTests
 
 open System.IO
 open System.Threading.Tasks

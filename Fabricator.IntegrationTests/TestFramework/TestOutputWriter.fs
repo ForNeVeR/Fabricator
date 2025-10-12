@@ -1,4 +1,4 @@
-﻿namespace Fabricator.IntegrationTests.TestFramework
+namespace Fabricator.IntegrationTests.TestFramework
 
 open System
 open System.IO
