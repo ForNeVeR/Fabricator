@@ -19,7 +19,7 @@ type FileSource =
 let private resourceName source =
     match source with
     | ContentFile path | AbsoluteFile path ->
-        Path.GetFileName path
+        nonNull <| Path.GetFileName path
     | GeneratedContent(name, _) -> name
 
 let private readAllBytesAsync path = async {
@@ -27,7 +27,7 @@ let private readAllBytesAsync path = async {
     return! Async.AwaitTask <| File.ReadAllBytesAsync(path, ct)
 }
 
-let private writeAllBytesAsync path bytes = async {
+let private writeAllBytesAsync (path: string) (bytes: byte[]) = async {
     let! ct = Async.CancellationToken
     return! Async.AwaitTask(File.WriteAllBytesAsync(path, bytes, ct))
 }
@@ -37,12 +37,12 @@ let private getContent source =
     | AbsoluteFile path ->
         readAllBytesAsync path
     | ContentFile path ->
-        let filePath = Path.Combine(FrameworkUtil.getApplicationDirectoryPath(), path)
+        let filePath = Path.Combine(Environment.CurrentDirectory, path)
         readAllBytesAsync filePath
     | GeneratedContent(_, generator) ->
         generator() |> async.Return
 
-let private arraysEqual a b =
+let private arraysEqual (a: 'a[]) (b: 'a[]) =
     ReadOnlySpan(a).SequenceEqual(ReadOnlySpan(b))
 
 type FileResource(source: FileSource, targetAbsolutePath: string) =
@@ -56,7 +56,6 @@ type FileResource(source: FileSource, targetAbsolutePath: string) =
             return arraysEqual existingContent actualContent
         }
         member _.Apply() = async {
-            let! ct = Async.CancellationToken
             let! content = getContent source
             do! writeAllBytesAsync targetAbsolutePath content
         }

@@ -161,6 +161,8 @@ let private WithServiceHandleAsync name access action = async {
         return! action(Result.Ok service)
 }
 
+#nowarn 9 // NativePtr stuff
+#nowarn 3265 // Application of method 'PtrToStructure' attempted to create a nullable type ('T | null) for 'QUERY_SERVICE_CONFIGW'. Nullness warnings won't be reported correctly for such types.
 let GetService(name: string): WindowsServiceInfo option =
     WithServiceHandle name SC_MANAGER_CONNECT (fun service ->
         match service with
@@ -168,7 +170,6 @@ let GetService(name: string): WindowsServiceInfo option =
         | Result.Error other -> raise <| Win32Exception other
         | Result.Ok service ->
 
-#nowarn 9 // NativePtr stuff
         let mutable buffer = NativePtr.stackalloc<byte>(Marshal.SizeOf<QUERY_SERVICE_CONFIGW>())
         let mutable bytesNeeded = 0u
         let mutable success = QueryServiceConfigW(
@@ -198,6 +199,7 @@ let GetService(name: string): WindowsServiceInfo option =
             AccountName = serviceConfig.lpServiceStartName
         }
     )
+
 
 let private waitForStop service = async {
     let mutable finished = false

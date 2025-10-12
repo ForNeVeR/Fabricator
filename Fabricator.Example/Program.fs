@@ -23,7 +23,7 @@ let shawlVersion = "1.7.0"
 let shawlHash = Sha256 "EAA4FED710E844CC7968FDB82E816D406ED89C4486AB34C3E5DB2DA7E5927923"
 
 // Calculated parameters:
-let fileName(uri: Uri) = Path.GetFileName uri.LocalPath
+let fileName(uri: Uri) = nonNull <| Path.GetFileName uri.LocalPath
 
 let readeckUrl = Uri $"https://codeberg.org/readeck/readeck/releases/download/{readeckVersion}/readeck-{readeckVersion}-windows-amd64.exe"
 let readeckBinDir = AbsolutePath @"C:\Programs\readeck"

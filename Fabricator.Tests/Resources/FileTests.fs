@@ -32,7 +32,7 @@ let ``PresentableName for GeneratedContent``(): unit =
     let resource = fileFromSource(ContentFile("file.txt"))
     Assert.Equal("file.txt", resource.PresentableName)
 
-let private testAlreadyApplied sourceContent targetContent = task {
+let private testAlreadyApplied (sourceContent: byte[]) (targetContent: byte[]) = task {
     let sourcePath = Path.GetTempFileName()
     let targetPath = Path.GetTempFileName()
     do! File.WriteAllBytesAsync(sourcePath, sourceContent)
