@@ -1,4 +1,8 @@
-﻿module Fabricator.Resources.Archive
+﻿// SPDX-FileCopyrightText: 2025 Friedrich von Never <friedrich@fornever.me>
+//
+// SPDX-License-Identifier: MIT
+
+module Fabricator.Resources.Archive
 
 open System.IO.Compression
 open Fabricator.Core
