@@ -41,37 +41,13 @@ When Fabricator is started on a remote host, it should be able to identify the
 host and required actions. It could do that either by passing command-line
 argument to itself, or by reading the hostname (if available).
 
-Developer Documentation
------------------------
-
-### Prerequisites
-Fabricator requires [.NET 5 (or later) SDK][dotnet-sdk] for development.
-
-### Build
-To build the project (while automatically restoring the dependencies, if
-necessary), execute the following command:
-
-```console
-$ dotnet build
-```
-
-### Test
-To run the automatic test suite, execute the following command:
-
-```console
-$ dotnet test
-```
-
-### Pack
-To pack the artifacts for uploading onto NuGet, execute the following command:
-
-```console
-$ dotnet pack
-```
+Documentation
+-------------
+- [Contributor Guide][docs.contributing]
 
 [andivionian-status-classifier]: https://github.com/ForNeVeR/andivionian-status-classifier#status-zero-
+[docs.contributing]: CONTRIBUTING.md
 [dotnet-sdk]: http://dot.net/
 [powershell-dsc]: https://docs.microsoft.com/en-us/powershell/scripting/dsc/getting-started/wingettingstarted
 [propellor]: http://propellor.branchable.com/
-
 [status-zero]: https://img.shields.io/badge/status-zero-lightgrey.svg
