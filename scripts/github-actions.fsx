@@ -62,11 +62,7 @@ let workflows = [
             )
             step(
                 name = "Run unit tests",
-                run = "cd Fabricator.Tests && dotnet test"
-            )
-            step(
-                name = "Run integration tests",
-                run = "cd Fabricator.IntegrationTests && dotnet test"
+                run = "dotnet test"
             )
         ]
         job "encoding" [

@@ -55,9 +55,7 @@ jobs:
     - name: Build
       run: dotnet build
     - name: Run unit tests
-      run: cd Fabricator.Tests && dotnet test
-    - name: Run integration tests
-      run: cd Fabricator.IntegrationTests && dotnet test
+      run: dotnet test
   encoding:
     runs-on: ubuntu-24.04
     steps:
