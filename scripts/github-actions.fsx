@@ -16,7 +16,7 @@ let workflows = [
         onPushTo "main"
         onPullRequestTo "main"
 
-        let dotNetJob id steps dotNetOptions =
+        let dotNetJob id steps =
             job id [
                 setEnv "DOTNET_CLI_TELEMETRY_OPTOUT" "1"
                 setEnv "DOTNET_NOLOGO" "1"
@@ -28,8 +28,7 @@ let workflows = [
                 )
                 step(
                     name = "Set up .NET SDK",
-                    usesSpec = Auto "actions/setup-dotnet",
-                    ?options = dotNetOptions
+                    usesSpec = Auto "actions/setup-dotnet"
                 )
                 step(
                     name = "Cache NuGet packages",
@@ -46,7 +45,7 @@ let workflows = [
         dotNetJob "verify-workflows" [
             runsOn "ubuntu-24.04"
             step(run = "dotnet fsi ./scripts/github-actions.fsx verify")
-        ] (Some <| Map.ofList [ "dotnet-version", "9.0.x" ])
+        ]
 
         dotNetJob "main" [
             runsOn "${{ matrix.environment }}"
@@ -69,7 +68,7 @@ let workflows = [
                 name = "Run integration tests",
                 run = "cd Fabricator.IntegrationTests && dotnet test"
             )
-        ] None
+        ]
         job "encoding" [
             runsOn "ubuntu-24.04"
             step(

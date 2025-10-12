@@ -20,6 +20,7 @@ ProjectSection(SolutionItems) = preProject
 	global.json.license = global.json.license
 	renovate.json = renovate.json
 	renovate.json.license = renovate.json.license
+	Directory.Build.props = Directory.Build.props
 EndProjectSection
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Fabricator.Tests", "Fabricator.Tests\Fabricator.Tests.fsproj", "{4B40B277-8315-454E-8D16-641B0629A710}"
