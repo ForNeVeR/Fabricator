@@ -1,4 +1,4 @@
-﻿module internal Fabricator.Resources.WindowsServiceManager
+module internal Fabricator.Resources.WindowsServiceManager
 
 open System
 open System.ComponentModel

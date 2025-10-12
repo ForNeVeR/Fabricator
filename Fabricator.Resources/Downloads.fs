@@ -1,4 +1,4 @@
-﻿module Fabricator.Resources.Downloads
+module Fabricator.Resources.Downloads
 
 open System
 open System.Net.Http

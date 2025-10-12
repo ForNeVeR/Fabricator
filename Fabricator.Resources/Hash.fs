@@ -1,4 +1,4 @@
-﻿module Fabricator.Resources.Hash
+module Fabricator.Resources.Hash
 
 open System
 open TruePath

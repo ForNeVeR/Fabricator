@@ -1,6 +1,5 @@
 ﻿module Fabricator.Resources.Archive
 
-open System
 open System.IO.Compression
 open Fabricator.Core
 open Fabricator.Resources.Hash

@@ -1,4 +1,4 @@
-﻿namespace Fabricator.Resources
+namespace Fabricator.Resources
 
 open Fabricator.Core
 
