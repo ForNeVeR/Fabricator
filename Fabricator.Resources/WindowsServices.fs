@@ -8,15 +8,17 @@ type WindowsServices =
             member this.PresentableName = $"Service \"{name}\""
             member this.AlreadyApplied() = async {
                 return
-                    match WindowsServiceManager.GetService(name) with
+                    match WindowsServiceManager.GetService name with
                     | None -> false
                     | Some service -> service.AccountName = account && service.CommandLine = commandLine
             }
             member this.Apply() = async {
-                match WindowsServiceManager.GetService(name) with
+                match WindowsServiceManager.GetService name with
                 | None -> ()
-                | Some service -> WindowsServiceManager.DeleteService(name)
+                | Some _ ->
+                    do! WindowsServiceManager.StopService name
+                    WindowsServiceManager.DeleteService name
 
-                WindowsServiceManager.CreateService(name, account, commandLine)
+                WindowsServiceManager.CreateService(name, { AccountName = account; CommandLine = commandLine })
             }
         }
