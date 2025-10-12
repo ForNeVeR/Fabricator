@@ -7,45 +7,64 @@ SPDX-License-Identifier: MIT
 Fabricator [![Status Zero][status-zero]][andivionian-status-classifier]
 ==========
 Fabricator is a hackable DevOps platform, similar to
-PowerShell [Desired State Configuration][powershell-dsc] in concept (to say,
-PowerShell team weren't the first ones to invent the concept, but have chosen
-the most descriptive name), and to [Propellor][propellor] in implementation.
+PowerShell's [Desired State Configuration][powershell-dsc] in concept.
 
 Core Concept
 ------------
-With Fabricator, the user describes the desired state of their cluster, and
-Fabricator does its best to lead the cluster to this desired state, when asked
+With Fabricator, the user describes the desired state of their environment, and
+Fabricator does its best to lead the configuration to this desired state, when asked
 to do so.
 
-Fabricator "script" is an ordinary .NET project, where you may use all your
+Fabricator's "script" is an F# `.fsx` script, where you may use all your
 favorite refactoring and code inspection tools; you may wrap or augment
 Fabricator calls with your code if you want to.
 
-Fabricator offers a DSL and a set of tasks to configure the cluster, everything
+Fabricator offers a DSL and a set of basic tasks to configure the environment, everything
 is available via NuGet and easily extendable.
 
-Also, Fabricator is portable across the platforms supported by .NET: both the
-control machine and any of the nodes across the cluster may run any supported
-operating systems.
+Also, Fabricator is portable across the platforms supported by .NET.
 
-Detailed Workflow
------------------
-Whenever the user wants to apply their changes to the cluster, they may, for
-each device:
+Basic Workflow
+--------------
+To start using Fabricator, you should:
+1. Create a new F# script file, with contents similar to the [example][].
+2. Run the script with `dotnet fsi ./script.fsx check` — this will check the environment and show the changes that are about to be performed.
+3. If everything's alright, run the script via `dotnet fsi ./script.fsx apply` — this will apply the changes to the current environment.
 
-- run the Fabricator-created binary locally on that device (via `dotnet run`, if
-  .NET SDK is installed, or via other means)
-- upload the host-specific Fabricator-created package to a remote host and run
-  there, providing the runtime for it (if required)
-- make Fabricator to upload the binary (essentially cloning itself to a remote
-  host) and run via the runtime already existing on the host
+Quick script example:
 
-Usually, .NET SDK should only be available locally, and shouldn't be necessary
-on remote.
+```fsharp
+#r "nuget: FVNever.Fabricator, 0.0.0"
 
-When Fabricator is started on a remote host, it should be able to identify the
-host and required actions. It could do that either by passing command-line
-argument to itself, or by reading the hostname (if available).
+let shawlVersion = "1.7.0"
+let shawlHash = Sha256 "EAA4FED710E844CC7968FDB82E816D406ED89C4486AB34C3E5DB2DA7E5927923"
+
+let cacheDir = AbsolutePath @"T:\Temp\fabricator\download-cache"
+let shawlUrl = Uri $"https://github.com/mtkennerly/shawl/releases/download/v{shawlVersion}/shawl-v{shawlVersion}-win64.zip"
+
+let shawlDownloadCache = cacheDir / fileName shawlUrl
+let shawlExecutable = AbsolutePath @"C:\Programs\shawl\shawl.exe"
+
+let installShawl = [
+    downloadFile(shawlUrl, shawlHash, shawlDownloadCache)
+    unpackArchive(shawlDownloadCache, shawlHash, shawlExecutable.Parent.Value)
+    ensureFileExists shawlExecutable
+]
+
+let resources = [
+    yield! installShawl
+]
+
+[<EntryPoint>]
+let main(args: string[]): int =
+    EntryPoint.main args resources
+```
+
+This script will make sure there's an executable `C:\Programs\shawl\shawl.exe` downloaded from the specified URL. This executable might then be used for other resources' setup, e.g. for `Fabricator.Resources.WindowsServices.windowsService`.
+
+Prerequisites
+-------------
+To work with Fabricator, you'll need [.NET SDK][dotnet-sdk] 5.0 or later.
 
 Documentation
 -------------
@@ -62,8 +81,8 @@ The license indication in the project's sources is compliant with the [REUSE spe
 [docs.contributing]: CONTRIBUTING.md
 [docs.license]: LICENSE.txt
 [docs.maintaining]: MAINTAINING.md
-[dotnet-sdk]: http://dot.net/
+[dotnet-sdk]: https://dotnet.microsoft.com/
+[example]: Fabricator.Example/Program.fs
 [powershell-dsc]: https://docs.microsoft.com/en-us/powershell/scripting/dsc/getting-started/wingettingstarted
-[propellor]: http://propellor.branchable.com/
 [reuse]: https://reuse.software/
 [status-zero]: https://img.shields.io/badge/status-zero-lightgrey.svg
