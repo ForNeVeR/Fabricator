@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2020-2025 Friedrich von Never <friedrich@fornever.me>
+
+SPDX-License-Identifier: MIT
+-->
+
 Fabricator [![Status Zero][status-zero]][andivionian-status-classifier]
 ==========
 Fabricator is a hackable DevOps platform, similar to

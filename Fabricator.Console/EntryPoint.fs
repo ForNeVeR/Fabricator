@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2025 Friedrich von Never <friedrich@fornever.me>
+//
+// SPDX-License-Identifier: MIT
+
 module Fabricator.Console.EntryPoint
 
 open System
