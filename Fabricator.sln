@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26124.0
@@ -11,9 +11,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 ProjectSection(SolutionItems) = preProject
 	.editorconfig = .editorconfig
 	.gitignore = .gitignore
-	License.md = License.md
 	README.md = README.md
 	CONTRIBUTING.md = CONTRIBUTING.md
+	MAINTAINING.md = MAINTAINING.md
+	LICENSE.txt = LICENSE.txt
 EndProjectSection
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Fabricator.Tests", "Fabricator.Tests\Fabricator.Tests.fsproj", "{4B40B277-8315-454E-8D16-641B0629A710}"
@@ -30,6 +31,11 @@ EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Fabricator.Core", "Fabricator.Core\Fabricator.Core.fsproj", "{80263F7D-DD2D-4565-B084-3FB194862C53}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Fabricator.IntegrationTests", "Fabricator.IntegrationTests\Fabricator.IntegrationTests.fsproj", "{DBFEB20B-C966-401A-A8B9-41787A57850E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LICENSES", "LICENSES", "{3FD3BD1B-B32F-481C-A7E2-27DFE4C13647}"
+	ProjectSection(SolutionItems) = preProject
+		LICENSES\MIT.txt = LICENSES\MIT.txt
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

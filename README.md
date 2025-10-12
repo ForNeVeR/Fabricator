@@ -44,6 +44,7 @@ argument to itself, or by reading the hostname (if available).
 Documentation
 -------------
 - [Contributor Guide][docs.contributing]
+- [Maintainer Guide][docs.maintaining]
 
 License
 -------
@@ -54,6 +55,7 @@ The license indication in the project's sources is compliant with the [REUSE spe
 [andivionian-status-classifier]: https://github.com/ForNeVeR/andivionian-status-classifier#status-zero-
 [docs.contributing]: CONTRIBUTING.md
 [docs.license]: LICENSE.txt
+[docs.maintaining]: MAINTAINING.md
 [dotnet-sdk]: http://dot.net/
 [powershell-dsc]: https://docs.microsoft.com/en-us/powershell/scripting/dsc/getting-started/wingettingstarted
 [propellor]: http://propellor.branchable.com/
