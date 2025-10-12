@@ -14,7 +14,7 @@ module ExitCodes =
     let NotAllApplied = 3
 
 let private printUsage() =
-    printfn "Arguments"
+    printfn "Arguments:"
     printfn "apply - applies the resources to the current environment"
     printfn "check - checks and shows the upcoming changes to the current environment, no actions taken"
 
