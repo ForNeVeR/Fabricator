@@ -52,7 +52,7 @@ let workflows = [
             strategy(matrix = [
                 "environment", [
                     "macos-15"
-                    "ubuntu-22.04"
+                    "ubuntu-24.04"
                     "windows-2025"
                 ]
             ], failFast = false)
