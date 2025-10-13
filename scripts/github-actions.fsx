@@ -51,7 +51,7 @@ let workflows = [
             runsOn "${{ matrix.environment }}"
             strategy(matrix = [
                 "environment", [
-                    "macos-13"
+                    "macos-15"
                     "ubuntu-22.04"
                     "windows-2022"
                 ]
