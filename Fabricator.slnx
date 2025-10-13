@@ -1,0 +1,31 @@
+<Solution>
+  <Folder Name="/.github/" />
+  <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/main.yml" />
+  </Folder>
+  <Folder Name="/LICENSES/">
+    <File Path="LICENSES/MIT.txt" />
+  </Folder>
+  <Folder Name="/scripts/">
+    <File Path="scripts/github-actions.fsx" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="CONTRIBUTING.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="global.json" />
+    <File Path="global.json.license" />
+    <File Path="LICENSE.txt" />
+    <File Path="MAINTAINING.md" />
+    <File Path="README.md" />
+    <File Path="renovate.json" />
+    <File Path="renovate.json.license" />
+    <File Path="Fabricator.slnx.license" />
+  </Folder>
+  <Project Path="Fabricator.Console/Fabricator.Console.fsproj" />
+  <Project Path="Fabricator.Core/Fabricator.Core.fsproj" />
+  <Project Path="Fabricator.Example/Fabricator.Example.fsproj" />
+  <Project Path="Fabricator.Resources/Fabricator.Resources.fsproj" />
+  <Project Path="Fabricator.Tests/Fabricator.Tests.fsproj" />
+</Solution>
