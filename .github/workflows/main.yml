@@ -24,7 +24,7 @@ jobs:
     - name: Set up .NET SDK
       uses: actions/setup-dotnet@v1.10.1
     - name: Cache NuGet packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: ${{ runner.os }}.nuget.${{ hashFiles('**/*.*proj', '**/*.props') }}
         path: ${{ env.NUGET_PACKAGES }}
@@ -48,7 +48,7 @@ jobs:
     - name: Set up .NET SDK
       uses: actions/setup-dotnet@v1.10.1
     - name: Cache NuGet packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: ${{ runner.os }}.nuget.${{ hashFiles('**/*.*proj', '**/*.props') }}
         path: ${{ env.NUGET_PACKAGES }}
