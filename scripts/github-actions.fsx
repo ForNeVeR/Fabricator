@@ -53,7 +53,7 @@ let workflows = [
                 "environment", [
                     "macos-13"
                     "ubuntu-22.04"
-                    "windows-2022"
+                    "windows-2025"
                 ]
             ], failFast = false)
             step(
