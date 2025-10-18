@@ -68,6 +68,7 @@ To work with Fabricator, you'll need [.NET SDK][dotnet-sdk] 9.0 or later.
 
 Documentation
 -------------
+- [API Reference][docs.api]
 - [Contributor Guide][docs.contributing]
 - [Maintainer Guide][docs.maintaining]
 
@@ -78,6 +79,7 @@ The project is distributed under the terms of [the MIT license][docs.license].
 The license indication in the project's sources is compliant with the [REUSE specification v3.3][reuse.spec].
 
 [andivionian-status-classifier]: https://github.com/ForNeVeR/andivionian-status-classifier#status-zero-
+[docs.api]: https://fornever.github.io/Fabricator/
 [docs.contributing]: CONTRIBUTING.md
 [docs.license]: LICENSE.txt
 [docs.maintaining]: MAINTAINING.md
