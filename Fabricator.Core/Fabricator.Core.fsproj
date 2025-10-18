@@ -6,6 +6,10 @@ SPDX-License-Identifier: MIT
 
 <Project Sdk="Microsoft.NET.Sdk">
 
+    <PropertyGroup>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
     <ItemGroup>
         <Compile Include="IResource.fs" />
         <Compile Include="AssemblyInfo.fs" />
