@@ -18,6 +18,9 @@ SPDX-License-Identifier: MIT
             $(NoWarn)
         </NoWarn>
     </PropertyGroup>
+    <PropertyGroup Label="Packaging">
+        <PackageId>FVNever.$(MSBuildProjectName)</PackageId>
+    </PropertyGroup>
 
     <PropertyGroup Condition="$(CI) != ''">
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
