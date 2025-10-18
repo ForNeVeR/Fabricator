@@ -13,7 +13,7 @@
     <File Path="docs\index.md" />
     <File Path="docs\docfx.json" />
     <File Path="docs\docfx.json.license" />
-    <File Path="docs\Fabricator.Resources.md" />
+    <File Path="docs\Fabricator.Resources.namespace.md" />
   </Folder>
   <Folder Name="/LICENSES/">
     <File Path="LICENSES/MIT.txt" />
