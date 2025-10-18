@@ -98,6 +98,10 @@ let workflows = [
                 run = "dotnet tool restore"
             )
             step(
+                name = "Publish the assemblies",
+                run = "dotnet publish -o publish"
+            )
+            step(
                 name = "Validate docfx",
                 run = "dotnet docfx docs/docfx.json --warningsAsErrors"
             )

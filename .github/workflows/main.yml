@@ -89,5 +89,7 @@ jobs:
         path: ${{ env.NUGET_PACKAGES }}
     - name: Restore dotnet tools
       run: dotnet tool restore
+    - name: Publish the assemblies
+      run: dotnet publish -o publish
     - name: Validate docfx
       run: dotnet docfx docs/docfx.json --warningsAsErrors
