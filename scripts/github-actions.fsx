@@ -68,7 +68,7 @@ let workflows = [
             )
             step(
                 name = "REUSE license check",
-                uses = "fsfe/reuse-action@v5"
+                usesSpec = Auto "fsfe/reuse-action"
             )
         ]
 
