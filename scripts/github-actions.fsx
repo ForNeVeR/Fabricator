@@ -10,37 +10,37 @@ open Generaptor
 open Generaptor.GitHubActions
 open type Generaptor.GitHubActions.Commands
 let workflows = [
+    let dotNetJob id steps =
+        job id [
+            setEnv "DOTNET_CLI_TELEMETRY_OPTOUT" "1"
+            setEnv "DOTNET_NOLOGO" "1"
+            setEnv "NUGET_PACKAGES" "${{ github.workspace }}/.github/nuget-packages"
+
+            step(
+                name = "Check out the sources",
+                usesSpec = Auto "actions/checkout"
+            )
+            step(
+                name = "Set up .NET SDK",
+                usesSpec = Auto "actions/setup-dotnet"
+            )
+            step(
+                name = "Cache NuGet packages",
+                usesSpec = Auto "actions/cache",
+                options = Map.ofList [
+                    "key", "${{ runner.os }}.nuget.${{ hashFiles('**/*.*proj', '**/*.props') }}"
+                    "path", "${{ env.NUGET_PACKAGES }}"
+                ]
+            )
+
+            yield! steps
+        ]
+
     workflow "main" [
         header licenseHeader
         name "Main"
         onPushTo "main"
         onPullRequestTo "main"
-
-        let dotNetJob id steps =
-            job id [
-                setEnv "DOTNET_CLI_TELEMETRY_OPTOUT" "1"
-                setEnv "DOTNET_NOLOGO" "1"
-                setEnv "NUGET_PACKAGES" "${{ github.workspace }}/.github/nuget-packages"
-
-                step(
-                    name = "Check out the sources",
-                    usesSpec = Auto "actions/checkout"
-                )
-                step(
-                    name = "Set up .NET SDK",
-                    usesSpec = Auto "actions/setup-dotnet"
-                )
-                step(
-                    name = "Cache NuGet packages",
-                    usesSpec = Auto "actions/cache",
-                    options = Map.ofList [
-                        "key", "${{ runner.os }}.nuget.${{ hashFiles('**/*.*proj', '**/*.props') }}"
-                        "path", "${{ env.NUGET_PACKAGES }}"
-                    ]
-                )
-
-                yield! steps
-            ]
 
         dotNetJob "verify-workflows" [
             runsOn "ubuntu-24.04"
@@ -89,5 +89,45 @@ let workflows = [
             )
         ]
     ]
+
+    workflow "docs" [
+        header licenseHeader
+        name "Docs"
+        onPushTo "main"
+        onWorkflowDispatch
+
+        workflowPermission(PermissionKind.Actions, AccessKind.Read)
+        workflowPermission(PermissionKind.Pages, AccessKind.Write)
+        workflowPermission(PermissionKind.IdToken, AccessKind.Write)
+
+        workflowConcurrency(group = "pages", cancelInProgress = true)
+
+        dotNetJob "docs" [
+            environment(name = "github-pages", url = "${{ steps.deployment.outputs.page_url }}")
+            runsOn "ubuntu-24.04"
+            step(
+                name = "Restore .NET tools",
+                run = "dotnet tool restore"
+            )
+            step(
+                name = "Publish the assemblies",
+                run = "dotnet publish -o publish"
+            )
+            step(
+                 name = "Run docfx",
+                 run = "dotnet docfx docs/docfx.json"
+            )
+            step(
+                name = "Upload artifact",
+                usesSpec = Auto "actions/upload-pages-artifact"
+            )
+            step(
+                name = "Deploy GitHub Pages",
+                id = "deployment",
+                usesSpec = Auto "actions/deploy-pages"
+            )
+        ]
+    ]
 ]
-EntryPoint.Process fsi.CommandLineArgs workflows
+
+exit <| EntryPoint.Process fsi.CommandLineArgs workflows

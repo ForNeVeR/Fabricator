@@ -1,0 +1,42 @@
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "..",
+          "files": [
+            "publish/Fabricator.*.dll"
+          ]
+        }
+      ],
+      "dest": "api"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "**/*.{md,yml}"
+        ],
+        "exclude": [
+          "_site/**",
+          "*.namespace.md"
+        ]
+      }
+    ],
+    "overwrite": [
+      "*.namespace.md"
+    ],
+    "output": "_site",
+    "template": [
+      "default",
+      "modern"
+    ],
+    "globalMetadata": {
+      "_appName": "Fabricator",
+      "_appTitle": "Fabricator",
+      "_enableSearch": true,
+      "pdf": false
+    }
+  }
+}
