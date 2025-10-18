@@ -44,6 +44,8 @@ jobs:
       run: dotnet docfx docs/docfx.json
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v4
+      with:
+        path: docs/_site
     - id: deployment
       name: Deploy GitHub Pages
       uses: actions/deploy-pages@v4

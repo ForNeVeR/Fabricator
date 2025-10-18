@@ -137,7 +137,10 @@ let workflows = [
             )
             step(
                 name = "Upload artifact",
-                usesSpec = Auto "actions/upload-pages-artifact"
+                usesSpec = Auto "actions/upload-pages-artifact",
+                options = Map.ofList [
+                    "path", "docs/_site"
+                ]
             )
             step(
                 name = "Deploy GitHub Pages",
