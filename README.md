@@ -86,5 +86,5 @@ The license indication in the project's sources is compliant with the [REUSE spe
 [dotnet-sdk]: https://dotnet.microsoft.com/
 [example]: Fabricator.Example/Program.fs
 [powershell-dsc]: https://docs.microsoft.com/en-us/powershell/scripting/dsc/getting-started/wingettingstarted
-[reuse]: https://reuse.software/
+[reuse.spec]: https://reuse.software/spec/
 [status-zero]: https://img.shields.io/badge/status-zero-lightgrey.svg
