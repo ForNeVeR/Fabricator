@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-module Fabricator.Console.Commands
+module internal Fabricator.Console.Commands
 
 open Fabricator.Core
 

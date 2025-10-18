@@ -18,7 +18,7 @@ let private printUsage() =
     printfn "apply - applies the resources to the current environment"
     printfn "check - checks and shows the upcoming changes to the current environment, no actions taken"
 
-/// Performs tasks on passed cluster according to the passed arguments
+/// Performs tasks on the passed resources according to the passed arguments.
 let main (args: string[]) (resources: IResource seq): int =
     match args with
     | [|"apply"|] ->
