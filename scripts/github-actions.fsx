@@ -47,7 +47,32 @@ let workflows = [
             step(run = "dotnet fsi ./scripts/github-actions.fsx verify")
         ]
 
-        dotNetJob "main" [
+        job "encoding" [
+            runsOn "ubuntu-24.04"
+            step(
+                name = "Check out the sources",
+                uses = "actions/checkout@v5"
+            )
+            step(
+                name = "Verify encoding",
+                shell = "pwsh",
+                run = "Install-Module VerifyEncoding -Repository PSGallery -RequiredVersion 2.2.1 -Force && Test-Encoding"
+            )
+        ]
+
+        job "licenses" [
+            runsOn "ubuntu-24.04"
+            step(
+                name = "Check out the sources",
+                uses = "actions/checkout@v5"
+            )
+            step(
+                name = "REUSE license check",
+                uses = "fsfe/reuse-action@v5"
+            )
+        ]
+
+        dotNetJob "check" [
             runsOn "${{ matrix.environment }}"
             strategy(matrix = [
                 "environment", [
@@ -65,27 +90,16 @@ let workflows = [
                 run = "dotnet test"
             )
         ]
-        job "encoding" [
+
+        dotNetJob "check-docs" [
             runsOn "ubuntu-24.04"
             step(
-                name = "Check out the sources",
-                uses = "actions/checkout@v5"
+                name = "Restore dotnet tools",
+                run = "dotnet tool restore"
             )
             step(
-                name = "Verify encoding",
-                shell = "pwsh",
-                run = "Install-Module VerifyEncoding -Repository PSGallery -RequiredVersion 2.2.1 -Force && Test-Encoding"
-            )
-        ]
-        job "licenses" [
-            runsOn "ubuntu-24.04"
-            step(
-                name = "Check out the sources",
-                uses = "actions/checkout@v5"
-            )
-            step(
-                name = "REUSE license check",
-                uses = "fsfe/reuse-action@v5"
+                name = "Validate docfx",
+                run = "dotnet docfx docs/docfx.json --warningsAsErrors"
             )
         ]
     ]
