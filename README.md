@@ -63,7 +63,7 @@ let resources = [
     yield! installShawl
 ]
 
-exit <| EntryPoint.main args resources
+exit <| EntryPoint.main fsi.CommandLineArgs resources
 ```
 
 This script will make sure there's an executable `C:\Programs\shawl\shawl.exe` downloaded from the specified URL. This executable might then be used for other resources' setup, e.g., for the [Windows service resource][docs.windows-service].
