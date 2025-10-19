@@ -1,3 +1,6 @@
+open System
+open System.IO
+
 let licenseHeader = """
 # SPDX-FileCopyrightText: 2020-2025 Friedrich von Never <friedrich@fornever.me>
 #
@@ -146,6 +149,84 @@ let workflows = [
                 name = "Deploy GitHub Pages",
                 id = "deployment",
                 usesSpec = Auto "actions/deploy-pages"
+            )
+        ]
+    ]
+
+    workflow "release" [
+        header licenseHeader
+        name "Release"
+        onPushTo "main"
+        onPushTags "v*"
+        onPullRequestTo "main"
+        onSchedule "0 0 * * 6"
+        onWorkflowDispatch
+        dotNetJob "nuget" [
+            jobPermission(PermissionKind.Contents, AccessKind.Write)
+            runsOn "ubuntu-24.04"
+            step(
+                id = "version",
+                name = "Get version",
+                shell = "pwsh",
+                run = "echo \"version=$(scripts/Get-Version.ps1 -RefName $env:GITHUB_REF)\" >> $env:GITHUB_OUTPUT"
+            )
+            step(
+                run = "dotnet pack --configuration Release -p:Version=${{ steps.version.outputs.version }}"
+            )
+            step(
+                name = "Read changelog",
+                usesSpec = Auto "ForNeVeR/ChangelogAutomation.action",
+                options = Map.ofList [
+                    "output", "./release-notes.md"
+                ]
+            )
+
+            let projectNames = [
+                "Fabricator.Console"
+                "Fabricator.Core"
+                "Fabricator.Resources"
+            ]
+
+            let nuPkgPaths =
+                projectNames
+                |> Seq.map(fun p -> $"./{p}/bin/Release/FVNever.{p}.${{ steps.version.outputs.version }}.nupkg")
+                |> Seq.toArray
+
+            let filesToUpload =
+                nuPkgPaths
+                |> Seq.collect(fun p -> [
+                    p
+                    Path.ChangeExtension(p, "snupkg")
+                ])
+
+            let filesToUploadString = String.Join("\n", filesToUpload)
+
+            step(
+                name = "Upload artifacts",
+                usesSpec = Auto "actions/upload-artifact",
+                options = Map.ofList [
+                    "path", $"./release-notes.md\n{filesToUploadString}"
+                ]
+            )
+            step(
+                condition = "startsWith(github.ref, 'refs/tags/v')",
+                name = "Create a release",
+                usesSpec = Auto "softprops/action-gh-release",
+                options = Map.ofList [
+                    "body_path", "./release-notes.md"
+                    "files", filesToUploadString
+                    "name", "Fabricator v${{ steps.version.outputs.version }}"
+                ]
+            )
+
+            yield! nuPkgPaths |> Seq.map(fun nuPkg ->
+                let fileName = Path.GetFileNameWithoutExtension nuPkg
+                let packageName = fileName.Substring(0, fileName.IndexOf(".$"))
+                step(
+                    condition = "startsWith(github.ref, 'refs/tags/v')",
+                    name = $"Push {packageName} to NuGet",
+                    run = $"dotnet nuget push \"{nuPkg}\" --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_TOKEN }}"
+                )
             )
         ]
     ]

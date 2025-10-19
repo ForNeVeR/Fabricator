@@ -6,6 +6,12 @@ SPDX-License-Identifier: MIT
 
 <Project Sdk="Microsoft.NET.Sdk">
 
+    <PropertyGroup>
+        <Description>
+            This package is part of Fabricator, an infrastructure automation framework. Fabricator.Resources package provides the resource types available for deployment via Fabricator.
+        </Description>
+    </PropertyGroup>
+
     <ItemGroup>
         <Compile Include="Files.fs" />
         <Compile Include="Hash.fs" />

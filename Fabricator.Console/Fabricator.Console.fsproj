@@ -6,6 +6,12 @@ SPDX-License-Identifier: MIT
 
 <Project Sdk="Microsoft.NET.Sdk">
 
+    <PropertyGroup>
+        <Description>
+            This package is part of Fabricator, an infrastructure automation framework. Fabricator.Console provides the command-line interface for Fabricator, including argument parsing, logging facilities, and orchestration of resource deployment execution. It processes the resources and manages the apply/check workflow lifecycle.
+        </Description>
+    </PropertyGroup>
+
     <ItemGroup>
         <Compile Include="Commands.fs" />
         <Compile Include="EntryPoint.fs" />

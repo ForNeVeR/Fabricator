@@ -23,6 +23,7 @@
   <Folder Name="/scripts/">
     <File Path="scripts/github-actions.fsx" />
     <File Path="scripts\Update-Version.ps1" />
+    <File Path="scripts\Get-Version.ps1" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
@@ -37,6 +38,9 @@
     <File Path="renovate.json" />
     <File Path="renovate.json.license" />
     <File Path="Fabricator.slnx.license" />
+    <File Path="CHANGELOG.md" />
+    <File Path="Fabricator.sln.DotSettings" />
+    <File Path="Fabricator.sln.DotSettings.license" />
   </Folder>
   <Project Path="Fabricator.Console/Fabricator.Console.fsproj" />
   <Project Path="Fabricator.Core/Fabricator.Core.fsproj" />

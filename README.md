@@ -74,7 +74,8 @@ To work with Fabricator, you'll need [.NET SDK][dotnet-sdk] 9.0 or later.
 
 Documentation
 -------------
-- [API Reference][docs.api]
+- [Project Documentation Site (API Reference)][docs]
+- [Changelog][docs.changelog]
 - [Contributor Guide][docs.contributing]
 - [Maintainer Guide][docs.maintaining]
 
@@ -85,11 +86,12 @@ The project is distributed under the terms of [the MIT license][docs.license].
 The license indication in the project's sources is compliant with the [REUSE specification v3.3][reuse.spec].
 
 [andivionian-status-classifier]: https://github.com/ForNeVeR/andivionian-status-classifier#status-zero-
-[docs.api]: https://fornever.github.io/Fabricator/
+[docs.changelog]: CHANGELOG.md
 [docs.contributing]: CONTRIBUTING.md
 [docs.license]: LICENSE.txt
 [docs.maintaining]: MAINTAINING.md
 [docs.windows-service]: https://fornever.github.io/Fabricator/api/Fabricator.Resources.WindowsServices.html#Fabricator_Resources_WindowsServices_createWindowsService_System_String_System_String_System_String_
+[docs]: https://fornever.github.io/Fabricator/
 [dotnet-sdk]: https://dotnet.microsoft.com/
 [example]: Fabricator.Example/Program.fs
 [powershell-dsc]: https://docs.microsoft.com/en-us/powershell/scripting/dsc/getting-started/wingettingstarted
