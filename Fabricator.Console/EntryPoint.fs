@@ -19,7 +19,13 @@ let private printUsage() =
     printfn "check - checks and shows the upcoming changes to the current environment, no actions taken"
 
 /// Performs tasks on the passed resources according to the passed arguments.
-let main (args: string[]) (resources: IResource seq): int =
+let main (args: string seq) (resources: IResource seq): int =
+    let args = Seq.toArray args
+    let args =
+        if args.Length > 0 && args[0].EndsWith ".fsx"
+        then Array.skip 1 args
+        else args
+
     match args with
     | [|"apply"|] ->
         if Async.RunSynchronously(Commands.apply resources) then ExitCodes.Success else ExitCodes.ExecutionError
