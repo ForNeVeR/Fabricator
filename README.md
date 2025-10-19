@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2020-2025 Friedrich von Never <friedrich@fornever.me>
 SPDX-License-Identifier: MIT
 -->
 
-Fabricator [![Status Zero][status-zero]][andivionian-status-classifier]
+Fabricator [![Status Enfer][status-enfer]][andivionian-status-classifier] [![Fabricator.Core on nuget.org][nuget.badge]][nuget]
 ==========
 Fabricator is a hackable DevOps platform, similar to
 PowerShell's [Desired State Configuration][powershell-dsc] in concept.
@@ -34,8 +34,8 @@ To start using Fabricator, you should:
 Quick script example:
 
 ```fsharp
-#r "nuget: FVNever.Fabricator.Console, 0.0.0"
-#r "nuget: FVNever.Fabricator.Resources, 0.0.0"
+#r "nuget: FVNever.Fabricator.Console, 0.1.0"
+#r "nuget: FVNever.Fabricator.Resources, 0.1.0"
 
 open Fabricator.Console
 open Fabricator.Resources.Archive
@@ -85,7 +85,7 @@ The project is distributed under the terms of [the MIT license][docs.license].
 
 The license indication in the project's sources is compliant with the [REUSE specification v3.3][reuse.spec].
 
-[andivionian-status-classifier]: https://github.com/ForNeVeR/andivionian-status-classifier#status-zero-
+[andivionian-status-classifier]: https://andivionian.fornever.me/v1/#status-enfer-
 [docs.changelog]: CHANGELOG.md
 [docs.contributing]: CONTRIBUTING.md
 [docs.license]: LICENSE.txt
@@ -94,6 +94,8 @@ The license indication in the project's sources is compliant with the [REUSE spe
 [docs]: https://fornever.github.io/Fabricator/
 [dotnet-sdk]: https://dotnet.microsoft.com/
 [example]: Fabricator.Example/Program.fs
+[nuget.badge]: https://img.shields.io/nuget/v/FVNever.Fabricator.Core
+[nuget]: https://www.nuget.org/packages/FVNever.Fabricator.Core
 [powershell-dsc]: https://docs.microsoft.com/en-us/powershell/scripting/dsc/getting-started/wingettingstarted
 [reuse.spec]: https://reuse.software/spec/
-[status-zero]: https://img.shields.io/badge/status-zero-lightgrey.svg
+[status-enfer]: https://img.shields.io/badge/status-enfer-orange.svg
