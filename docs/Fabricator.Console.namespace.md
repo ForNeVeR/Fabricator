@@ -14,6 +14,6 @@ summary: *content
 The [`Fabricator.Console`][console] package includes the functions to control the resources. Most of the Fabricator scripts will launch by calling the [`EntryPoint.main`][main] function.
 
 [console]: xref:Fabricator.Console
-[main]: xref:Fabricator.Console.EntryPoint.main(System.String[],System.Collections.Generic.IEnumerable{Fabricator.Core.IResource})
+[main]: xref:Fabricator.Console.EntryPoint.main(System.Collections.Generic.IEnumerable{System.String},System.Collections.Generic.IEnumerable{Fabricator.Core.IResource})
 [nuget.badge]: https://img.shields.io/nuget/v/FVNever.Fabricator.Console
 [nuget.page]: https://www.nuget.org/packages/FVNever.Fabricator.Console
