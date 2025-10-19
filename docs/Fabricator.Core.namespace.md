@@ -14,5 +14,5 @@ summary: *content
 The [`Fabricator.Core`][core] package includes the definitions of the core Fabricator interfaces.
 
 [core]: xref:Fabricator.Core
-[nuget.badge]: https://img.shields.io/nuget/v/FVNever.Fabricator.Core.Git
-[nuget.page]: https://www.nuget.org/packages/FVNever.Fabricator.Core.Git
+[nuget.badge]: https://img.shields.io/nuget/v/FVNever.Fabricator.Core
+[nuget.page]: https://www.nuget.org/packages/FVNever.Fabricator.Core

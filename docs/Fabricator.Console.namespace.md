@@ -15,5 +15,5 @@ The [`Fabricator.Console`][console] package includes the functions to control th
 
 [console]: xref:Fabricator.Console
 [main]: xref:Fabricator.Console.EntryPoint.main(System.String[],System.Collections.Generic.IEnumerable{Fabricator.Core.IResource})
-[nuget.badge]: https://img.shields.io/nuget/v/FVNever.Fabricator.Console.Git
-[nuget.page]: https://www.nuget.org/packages/FVNever.Fabricator.Console.Git
+[nuget.badge]: https://img.shields.io/nuget/v/FVNever.Fabricator.Console
+[nuget.page]: https://www.nuget.org/packages/FVNever.Fabricator.Console
