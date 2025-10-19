@@ -37,6 +37,13 @@ Quick script example:
 #r "nuget: FVNever.Fabricator.Console, 0.0.0"
 #r "nuget: FVNever.Fabricator.Resources, 0.0.0"
 
+open Fabricator.Console
+open Fabricator.Resources.Archive
+open Fabricator.Resources.Downloads
+open Fabricator.Resources.Files
+open Fabricator.Resources.Hash
+open TruePath
+
 let shawlVersion = "1.7.0"
 let shawlHash = Sha256 "EAA4FED710E844CC7968FDB82E816D406ED89C4486AB34C3E5DB2DA7E5927923"
 
@@ -56,12 +63,10 @@ let resources = [
     yield! installShawl
 ]
 
-[<EntryPoint>]
-let main(args: string[]): int =
-    EntryPoint.main args resources
+exit <| EntryPoint.main args resources
 ```
 
-This script will make sure there's an executable `C:\Programs\shawl\shawl.exe` downloaded from the specified URL. This executable might then be used for other resources' setup, e.g. for `Fabricator.Resources.WindowsServices.windowsService`.
+This script will make sure there's an executable `C:\Programs\shawl\shawl.exe` downloaded from the specified URL. This executable might then be used for other resources' setup, e.g., for the [Windows service resource][docs.windows-service].
 
 Prerequisites
 -------------
@@ -84,6 +89,7 @@ The license indication in the project's sources is compliant with the [REUSE spe
 [docs.contributing]: CONTRIBUTING.md
 [docs.license]: LICENSE.txt
 [docs.maintaining]: MAINTAINING.md
+[docs.windows-service]: https://fornever.github.io/Fabricator/api/Fabricator.Resources.WindowsServices.html#Fabricator_Resources_WindowsServices_createWindowsService_System_String_System_String_System_String_
 [dotnet-sdk]: https://dotnet.microsoft.com/
 [example]: Fabricator.Example/Program.fs
 [powershell-dsc]: https://docs.microsoft.com/en-us/powershell/scripting/dsc/getting-started/wingettingstarted
