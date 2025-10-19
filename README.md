@@ -37,6 +37,8 @@ Quick script example:
 #r "nuget: FVNever.Fabricator.Console, 0.1.0"
 #r "nuget: FVNever.Fabricator.Resources, 0.1.0"
 
+open System
+open System.IO
 open Fabricator.Console
 open Fabricator.Resources.Archive
 open Fabricator.Resources.Downloads
@@ -50,7 +52,7 @@ let shawlHash = Sha256 "EAA4FED710E844CC7968FDB82E816D406ED89C4486AB34C3E5DB2DA7
 let cacheDir = AbsolutePath @"T:\Temp\fabricator\download-cache"
 let shawlUrl = Uri $"https://github.com/mtkennerly/shawl/releases/download/v{shawlVersion}/shawl-v{shawlVersion}-win64.zip"
 
-let shawlDownloadCache = cacheDir / fileName shawlUrl
+let shawlDownloadCache = cacheDir / Path.GetFileName shawlUrl.LocalPath
 let shawlExecutable = AbsolutePath @"C:\Programs\shawl\shawl.exe"
 
 let installShawl = [
