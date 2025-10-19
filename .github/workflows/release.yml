@@ -49,31 +49,31 @@ jobs:
       with:
         path: |-
           ./release-notes.md
-          ./Fabricator.Console/bin/Release/FVNever.Fabricator.Console.${ steps.version.outputs.version }.nupkg
-          ./Fabricator.Console/bin/Release/FVNever.Fabricator.Console.${ steps.version.outputs.version }.snupkg
-          ./Fabricator.Core/bin/Release/FVNever.Fabricator.Core.${ steps.version.outputs.version }.nupkg
-          ./Fabricator.Core/bin/Release/FVNever.Fabricator.Core.${ steps.version.outputs.version }.snupkg
-          ./Fabricator.Resources/bin/Release/FVNever.Fabricator.Resources.${ steps.version.outputs.version }.nupkg
-          ./Fabricator.Resources/bin/Release/FVNever.Fabricator.Resources.${ steps.version.outputs.version }.snupkg
+          ./Fabricator.Console/bin/Release/FVNever.Fabricator.Console.${{ steps.version.outputs.version }}.nupkg
+          ./Fabricator.Console/bin/Release/FVNever.Fabricator.Console.${{ steps.version.outputs.version }}.snupkg
+          ./Fabricator.Core/bin/Release/FVNever.Fabricator.Core.${{ steps.version.outputs.version }}.nupkg
+          ./Fabricator.Core/bin/Release/FVNever.Fabricator.Core.${{ steps.version.outputs.version }}.snupkg
+          ./Fabricator.Resources/bin/Release/FVNever.Fabricator.Resources.${{ steps.version.outputs.version }}.nupkg
+          ./Fabricator.Resources/bin/Release/FVNever.Fabricator.Resources.${{ steps.version.outputs.version }}.snupkg
     - if: startsWith(github.ref, 'refs/tags/v')
       name: Create a release
       uses: softprops/action-gh-release@v2
       with:
         body_path: ./release-notes.md
         files: |-
-          ./Fabricator.Console/bin/Release/FVNever.Fabricator.Console.${ steps.version.outputs.version }.nupkg
-          ./Fabricator.Console/bin/Release/FVNever.Fabricator.Console.${ steps.version.outputs.version }.snupkg
-          ./Fabricator.Core/bin/Release/FVNever.Fabricator.Core.${ steps.version.outputs.version }.nupkg
-          ./Fabricator.Core/bin/Release/FVNever.Fabricator.Core.${ steps.version.outputs.version }.snupkg
-          ./Fabricator.Resources/bin/Release/FVNever.Fabricator.Resources.${ steps.version.outputs.version }.nupkg
-          ./Fabricator.Resources/bin/Release/FVNever.Fabricator.Resources.${ steps.version.outputs.version }.snupkg
+          ./Fabricator.Console/bin/Release/FVNever.Fabricator.Console.${{ steps.version.outputs.version }}.nupkg
+          ./Fabricator.Console/bin/Release/FVNever.Fabricator.Console.${{ steps.version.outputs.version }}.snupkg
+          ./Fabricator.Core/bin/Release/FVNever.Fabricator.Core.${{ steps.version.outputs.version }}.nupkg
+          ./Fabricator.Core/bin/Release/FVNever.Fabricator.Core.${{ steps.version.outputs.version }}.snupkg
+          ./Fabricator.Resources/bin/Release/FVNever.Fabricator.Resources.${{ steps.version.outputs.version }}.nupkg
+          ./Fabricator.Resources/bin/Release/FVNever.Fabricator.Resources.${{ steps.version.outputs.version }}.snupkg
         name: Fabricator v${{ steps.version.outputs.version }}
     - if: startsWith(github.ref, 'refs/tags/v')
       name: Push FVNever.Fabricator.Console to NuGet
-      run: dotnet nuget push "./Fabricator.Console/bin/Release/FVNever.Fabricator.Console.${ steps.version.outputs.version }.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${ secrets.NUGET_TOKEN }
+      run: dotnet nuget push "./Fabricator.Console/bin/Release/FVNever.Fabricator.Console.${{ steps.version.outputs.version }}.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_TOKEN }}
     - if: startsWith(github.ref, 'refs/tags/v')
       name: Push FVNever.Fabricator.Core to NuGet
-      run: dotnet nuget push "./Fabricator.Core/bin/Release/FVNever.Fabricator.Core.${ steps.version.outputs.version }.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${ secrets.NUGET_TOKEN }
+      run: dotnet nuget push "./Fabricator.Core/bin/Release/FVNever.Fabricator.Core.${{ steps.version.outputs.version }}.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_TOKEN }}
     - if: startsWith(github.ref, 'refs/tags/v')
       name: Push FVNever.Fabricator.Resources to NuGet
-      run: dotnet nuget push "./Fabricator.Resources/bin/Release/FVNever.Fabricator.Resources.${ steps.version.outputs.version }.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${ secrets.NUGET_TOKEN }
+      run: dotnet nuget push "./Fabricator.Resources/bin/Release/FVNever.Fabricator.Resources.${{ steps.version.outputs.version }}.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_TOKEN }}

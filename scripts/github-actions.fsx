@@ -189,7 +189,7 @@ let workflows = [
 
             let nuPkgPaths =
                 projectNames
-                |> Seq.map(fun p -> $"./{p}/bin/Release/FVNever.{p}.${{ steps.version.outputs.version }}.nupkg")
+                |> Seq.map(fun p -> $"./{p}/bin/Release/FVNever.{p}.${{{{ steps.version.outputs.version }}}}.nupkg")
                 |> Seq.toArray
 
             let filesToUpload =
@@ -225,7 +225,7 @@ let workflows = [
                 step(
                     condition = "startsWith(github.ref, 'refs/tags/v')",
                     name = $"Push {packageName} to NuGet",
-                    run = $"dotnet nuget push \"{nuPkg}\" --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_TOKEN }}"
+                    run = $"dotnet nuget push \"{nuPkg}\" --source https://api.nuget.org/v3/index.json --api-key ${{{{ secrets.NUGET_TOKEN }}}}"
                 )
             )
         ]
