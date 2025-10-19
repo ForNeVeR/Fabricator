@@ -34,7 +34,8 @@ To start using Fabricator, you should:
 Quick script example:
 
 ```fsharp
-#r "nuget: FVNever.Fabricator, 0.0.0"
+#r "nuget: FVNever.Fabricator.Console, 0.0.0"
+#r "nuget: FVNever.Fabricator.Resources, 0.0.0"
 
 let shawlVersion = "1.7.0"
 let shawlHash = Sha256 "EAA4FED710E844CC7968FDB82E816D406ED89C4486AB34C3E5DB2DA7E5927923"
