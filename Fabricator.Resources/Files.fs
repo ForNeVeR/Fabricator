@@ -29,6 +29,7 @@ let private readAllBytesAsync path = async {
 
 let private writeAllBytesAsync (path: string) (bytes: byte[]) = async {
     let! ct = Async.CancellationToken
+    Directory.CreateDirectory(nonNull <| Path.GetDirectoryName path) |> ignore
     return! Async.AwaitTask(File.WriteAllBytesAsync(path, bytes, ct))
 }
 
