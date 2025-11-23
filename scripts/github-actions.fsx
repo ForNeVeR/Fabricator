@@ -28,7 +28,7 @@ let workflows = [
                 usesSpec = Auto "actions/setup-dotnet"
             )
             step(
-                condition = "runner.os != 'macOS'", // TODO: Remove this check after https://github.com/actions/runner-images/issues/13341 is resolved
+                condition = "runner.os != 'macOS'", // TODO[#68]: Remove this check after https://github.com/actions/runner-images/issues/13341 is resolved
                 name = "Cache NuGet packages",
                 usesSpec = Auto "actions/cache",
                 options = Map.ofList [
