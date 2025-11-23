@@ -55,7 +55,7 @@ let workflows = [
             runsOn "ubuntu-24.04"
             step(
                 name = "Check out the sources",
-                uses = "actions/checkout@v5"
+                usesSpec = Auto "actions/checkout"
             )
             step(
                 name = "Verify encoding",
@@ -68,7 +68,7 @@ let workflows = [
             runsOn "ubuntu-24.04"
             step(
                 name = "Check out the sources",
-                uses = "actions/checkout@v5"
+                usesSpec = Auto "actions/checkout"
             )
             step(
                 name = "REUSE license check",
