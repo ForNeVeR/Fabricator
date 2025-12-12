@@ -32,7 +32,7 @@ jobs:
       uses: actions/setup-dotnet@v5
     - if: runner.os != 'macOS'
       name: Cache NuGet packages
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         key: ${{ runner.os }}.nuget.${{ hashFiles('**/*.*proj', '**/*.props') }}
         path: ${{ env.NUGET_PACKAGES }}
