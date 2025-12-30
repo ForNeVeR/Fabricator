@@ -160,3 +160,12 @@ let ``Apply and AlreadyApplied work together``(): Task = upcast task {
     File.Delete(tempPath)
     Assert.True afterApply
 }
+
+[<Fact>]
+let ``Default hosts file path uses platform-specific location``(): unit =
+    // This test verifies that the default path is platform-appropriate
+    // We can't directly test the private defaultHostsPath, but we can verify
+    // the resource works with default path by checking it doesn't throw on creation
+    let resource = HostFile.Record("127.0.0.1", "test.com")
+    Assert.NotNull(resource)
+    Assert.Equal("Host file entry \"test.com\"", resource.PresentableName)

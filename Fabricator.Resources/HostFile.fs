@@ -6,6 +6,7 @@ namespace Fabricator.Resources
 
 open System
 open System.IO
+open System.Runtime.InteropServices
 open Fabricator.Core
 
 type HostFile =
@@ -14,11 +15,15 @@ type HostFile =
     /// </summary>
     /// <param name="ipAddress">The IP address for the host entry.</param>
     /// <param name="host">The hostname to map to the IP address.</param>
-    /// <param name="hostsFilePath">Optional path to the hosts file. Defaults to Windows hosts file path.
-    /// Note: This resource is designed for Windows only at this stage.</param>
+    /// <param name="hostsFilePath">Optional path to the hosts file. Defaults to the platform-specific hosts file path:
+    /// Windows: C:\Windows\System32\drivers\etc\hosts, Linux/macOS: /etc/hosts</param>
     /// <returns>An IResource for managing the host file entry.</returns>
     static member Record(ipAddress: string, host: string, ?hostsFilePath: string): IResource =
-        let defaultHostsPath = @"C:\Windows\System32\drivers\etc\hosts"
+        let defaultHostsPath =
+            if RuntimeInformation.IsOSPlatform(OSPlatform.Windows) then
+                @"C:\Windows\System32\drivers\etc\hosts"
+            else
+                "/etc/hosts"
         let filePath = defaultArg hostsFilePath defaultHostsPath
         
         let normalizeEntry (line: string) =
