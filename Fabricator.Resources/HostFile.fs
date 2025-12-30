@@ -14,7 +14,8 @@ type HostFile =
     /// </summary>
     /// <param name="ipAddress">The IP address for the host entry.</param>
     /// <param name="host">The hostname to map to the IP address.</param>
-    /// <param name="hostsFilePath">Optional path to the hosts file. Defaults to Windows hosts file path.</param>
+    /// <param name="hostsFilePath">Optional path to the hosts file. Defaults to Windows hosts file path.
+    /// Note: This resource is designed for Windows only at this stage.</param>
     /// <returns>An IResource for managing the host file entry.</returns>
     static member Record(ipAddress: string, host: string, ?hostsFilePath: string): IResource =
         let defaultHostsPath = @"C:\Windows\System32\drivers\etc\hosts"
@@ -67,7 +68,7 @@ type HostFile =
                 
                 // Ensure the file exists
                 if not (File.Exists filePath) then
-                    failwithf $"Hosts file not found at \"{filePath}\""
+                    failwithf $"Hosts file not found at \"{filePath}\". Ensure the file exists or specify a valid path using the hostsFilePath parameter."
                 
                 let! lines = Async.AwaitTask <| File.ReadAllLinesAsync(filePath, ct)
                 
