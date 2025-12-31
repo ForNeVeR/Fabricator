@@ -21,7 +21,7 @@ SPDX-License-Identifier: MIT
         <Compile Include="WindowsServiceManager.fs" />
         <Compile Include="WindowsServices.fs" />
         <Compile Include="Chocolatey.fs" />
-        <Compile Include="HostFile.fs" />
+        <Compile Include="HostsFile.fs" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2025 Friedrich von Never <friedrich@fornever.me>
+// SPDX-FileCopyrightText: 2025 Friedrich von Never <friedrich@fornever.me>
 //
 // SPDX-License-Identifier: MIT
 
@@ -11,7 +11,7 @@ open Fabricator.Core
 open TruePath
 open TruePath.SystemIo
 
-type HostFile =
+type HostsFile =
     /// <summary>
     /// Gets the default hosts file path for the current platform.
     /// </summary>
@@ -21,7 +21,7 @@ type HostFile =
             AbsolutePath(Path.Combine(systemFolder, @"drivers\etc\hosts"))
         else
             AbsolutePath "/etc/hosts"
-    
+
     /// <summary>
     /// Creates a resource for managing a host file entry.
     /// </summary>
@@ -31,8 +31,8 @@ type HostFile =
     /// Windows: %SystemRoot%\drivers\etc\hosts (resolved dynamically), Linux/macOS: /etc/hosts</param>
     /// <returns>An IResource for managing the host file entry.</returns>
     static member Record(ipAddress: string, host: string, ?hostsFilePath: AbsolutePath): IResource =
-        let filePath = defaultArg hostsFilePath HostFile.DefaultHostsPath
-        
+        let filePath = defaultArg hostsFilePath HostsFile.DefaultHostsPath
+
         let removeInlineComment (line: string) =
             // Remove inline comments (# til the end of the line)
             let commentIndex = line.IndexOf('#')
@@ -40,7 +40,7 @@ type HostFile =
                 line.Substring(0, commentIndex)
             else
                 line
-        
+
         let parseEntry (line: string) =
             // Parse a line and return (IP, Set<hosts>)
             // Handles multi-host entries like "192.168.1.1 host1 host2 host3"
@@ -52,10 +52,10 @@ type HostFile =
                 Some (ip, hosts)
             else
                 None
-        
+
         let expectedHost = host.Trim().ToLowerInvariant()
         let expectedIp = ipAddress.Trim().ToLowerInvariant()
-        
+
         let findEntryWithHost (lines: string[]) =
             // Find the line that contains our host
             lines
@@ -64,40 +64,40 @@ type HostFile =
                 | Some (_, hosts) -> hosts |> Set.contains expectedHost
                 | None -> false
             )
-        
+
         let entryMatches (line: string) =
             // Check if the entry matches our expected IP and host
             match parseEntry line with
-            | Some (ip, hosts) -> 
+            | Some (ip, hosts) ->
                 ip = expectedIp && hosts |> Set.contains expectedHost
             | None -> false
-        
+
         { new IResource with
             member this.PresentableName = $"Host file entry \"{host}\""
-            
+
             member this.AlreadyApplied() = async {
                 if not (filePath.Exists()) then
                     return false
                 else
                     let! ct = Async.CancellationToken
                     let! lines = Async.AwaitTask <| filePath.ReadAllLinesAsync(ct)
-                    
+
                     match findEntryWithHost lines with
                     | Some index -> return entryMatches lines.[index]
                     | None -> return false
             }
-            
+
             member this.Apply() = async {
                 let! ct = Async.CancellationToken
-                
+
                 // Ensure the file exists
                 if not (filePath.Exists()) then
                     failwithf $"Hosts file not found at \"{filePath.Value}\". Ensure the file exists or specify a valid path using the hostsFilePath parameter."
-                
+
                 let! lines = Async.AwaitTask <| filePath.ReadAllLinesAsync(ct)
-                
+
                 let existingEntryIndex = findEntryWithHost lines
-                
+
                 let newLines =
                     match existingEntryIndex with
                     | Some index ->
@@ -115,9 +115,9 @@ type HostFile =
                                     let joinedHosts = String.Join(" ", otherHosts)
                                     let updatedLine = $"{ip} {joinedHosts}"
                                     let newLine = $"{ipAddress} {host}"
-                                    lines 
-                                    |> Array.mapi (fun i l -> 
-                                        if i = index then updatedLine 
+                                    lines
+                                    |> Array.mapi (fun i l ->
+                                        if i = index then updatedLine
                                         else l)
                                     |> Array.append [| newLine |]
                                 else
@@ -128,12 +128,12 @@ type HostFile =
                                         else
                                             l
                                     )
-                        | None -> 
+                        | None ->
                             failwithf $"Cannot parse line \"{line}\"."
                     | None ->
                         // Add new entry at the end
                         Array.append lines [| $"{ipAddress} {host}" |]
-                
+
                 do! Async.AwaitTask(filePath.WriteAllLinesAsync(newLines, ct))
             }
         }
