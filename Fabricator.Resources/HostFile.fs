@@ -80,7 +80,7 @@ type HostFile =
                     return false
                 else
                     let! ct = Async.CancellationToken
-                    let! lines = Async.AwaitTask <| File.ReadAllLinesAsync(filePath.Value, ct)
+                    let! lines = Async.AwaitTask <| filePath.ReadAllLinesAsync(ct)
                     
                     match findEntryWithHost lines with
                     | Some index -> return entryMatches lines.[index]
@@ -94,7 +94,7 @@ type HostFile =
                 if not (filePath.Exists()) then
                     failwithf $"Hosts file not found at \"{filePath.Value}\". Ensure the file exists or specify a valid path using the hostsFilePath parameter."
                 
-                let! lines = Async.AwaitTask <| File.ReadAllLinesAsync(filePath.Value, ct)
+                let! lines = Async.AwaitTask <| filePath.ReadAllLinesAsync(ct)
                 
                 let existingEntryIndex = findEntryWithHost lines
                 
