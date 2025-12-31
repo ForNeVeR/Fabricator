@@ -13,6 +13,7 @@ SPDX-License-Identifier: MIT
     </PropertyGroup>
 
     <ItemGroup>
+        <Compile Include="AssemblyInfo.fs" />
         <Compile Include="Files.fs" />
         <Compile Include="Hash.fs" />
         <Compile Include="Downloads.fs" />
@@ -20,6 +21,7 @@ SPDX-License-Identifier: MIT
         <Compile Include="WindowsServiceManager.fs" />
         <Compile Include="WindowsServices.fs" />
         <Compile Include="Chocolatey.fs" />
+        <Compile Include="HostFile.fs" />
     </ItemGroup>
 
     <ItemGroup>
