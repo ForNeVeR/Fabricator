@@ -28,7 +28,7 @@ type HostFile =
     /// <param name="ipAddress">The IP address for the host entry.</param>
     /// <param name="host">The hostname to map to the IP address.</param>
     /// <param name="hostsFilePath">Optional path to the hosts file. Defaults to the platform-specific hosts file path:
-    /// Windows: C:\Windows\System32\drivers\etc\hosts, Linux/macOS: /etc/hosts</param>
+    /// Windows: %SystemRoot%\drivers\etc\hosts (resolved dynamically), Linux/macOS: /etc/hosts</param>
     /// <returns>An IResource for managing the host file entry.</returns>
     static member Record(ipAddress: string, host: string, ?hostsFilePath: AbsolutePath): IResource =
         let filePath = defaultArg hostsFilePath HostFile.DefaultHostsPath
