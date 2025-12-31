@@ -17,7 +17,7 @@ open TruePath.SystemIo
 
 // Helper functions for testing
 let private withTempFile (action: AbsolutePath -> Task<'a>): Task<'a> = task {
-    let tempPath = AbsolutePath(Path.GetTempFileName())
+    let tempPath = Temporary.CreateTempFile()
     try
         return! action tempPath
     finally
@@ -27,32 +27,32 @@ let private withTempFile (action: AbsolutePath -> Task<'a>): Task<'a> = task {
 
 let private testAlreadyApplied (hostsContent: string) (ipAddress: string) (host: string) = 
     withTempFile (fun path -> task {
-        do! File.WriteAllTextAsync(path.Value, hostsContent)
+        do! path.WriteAllTextAsync(hostsContent)
         let resource = HostFile.Record(ipAddress, host, path)
         return! resource.AlreadyApplied()
     })
 
 let private testApply (hostsContent: string) (ipAddress: string) (host: string) (expectedHostsContent: string) = 
     withTempFile (fun path -> task {
-        do! File.WriteAllTextAsync(path.Value, hostsContent)
+        do! path.WriteAllTextAsync(hostsContent)
         let resource = HostFile.Record(ipAddress, host, path)
         do! resource.Apply()
-        let! actualContent = File.ReadAllTextAsync(path.Value)
+        let! actualContent = path.ReadAllTextAsync()
         Assert.Equal(expectedHostsContent, actualContent)
     })
 
 let private testApplyAndRead (hostsContent: string) (ipAddress: string) (host: string) = 
     withTempFile (fun path -> task {
-        do! File.WriteAllTextAsync(path.Value, hostsContent)
+        do! path.WriteAllTextAsync(hostsContent)
         let resource = HostFile.Record(ipAddress, host, path)
         do! resource.Apply()
-        return! File.ReadAllTextAsync(path.Value)
+        return! path.ReadAllTextAsync()
     })
 
 [<Fact>]
 let ``PresentableName returns correct format``(): Task = upcast task {
     do! withTempFile (fun path -> task {
-        do! File.WriteAllTextAsync(path.Value, "")
+        do! path.WriteAllTextAsync("")
         let resource = HostFile.Record("127.0.0.1", "example.com", path)
         Assert.Equal("Host file entry \"example.com\"", resource.PresentableName)
     })
@@ -60,7 +60,8 @@ let ``PresentableName returns correct format``(): Task = upcast task {
 
 [<Fact>]
 let ``AlreadyApplied returns false when host file does not exist``(): Task = upcast task {
-    let tempPath = AbsolutePath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
+    let tempPath = Temporary.CreateTempFile()
+    tempPath.Delete() // Delete to make it non-existent
     let resource = HostFile.Record("127.0.0.1", "example.com", tempPath)
     let! result = resource.AlreadyApplied()
     Assert.False result
@@ -111,22 +112,22 @@ let ``AlreadyApplied handles multi-host entries``(): Task = upcast task {
 [<Fact>]
 let ``Apply adds new entry when host does not exist``(): Task = upcast task {
     let! content = testApplyAndRead "127.0.0.1 localhost\n" "192.168.1.1" "example.com"
-    Assert.Contains("192.168.1.1\texample.com", content)
+    Assert.Contains("192.168.1.1 example.com", content)
     Assert.Contains("127.0.0.1 localhost", content)
 }
 
 [<Fact>]
 let ``Apply replaces existing entry with different IP``(): Task = upcast task {
     let! content = testApplyAndRead "127.0.0.1 localhost\n192.168.1.1 example.com\n" "10.0.0.1" "example.com"
-    Assert.Contains("10.0.0.1\texample.com", content)
+    Assert.Contains("10.0.0.1 example.com", content)
     Assert.DoesNotContain("192.168.1.1 example.com", content)
 }
 
 [<Fact>]
 let ``Apply splits multi-host entry when updating IP``(): Task = upcast task {
     let! content = testApplyAndRead "192.168.1.1 example.com another.com\n" "10.0.0.1" "example.com"
-    Assert.Contains("10.0.0.1\texample.com", content)
-    Assert.Contains("192.168.1.1\tanother.com", content)
+    Assert.Contains("10.0.0.1 example.com", content)
+    Assert.Contains("192.168.1.1 another.com", content)
     Assert.DoesNotContain("192.168.1.1 example.com another.com", content)
 }
 
@@ -134,12 +135,13 @@ let ``Apply splits multi-host entry when updating IP``(): Task = upcast task {
 let ``Apply preserves inline comments``(): Task = upcast task {
     let! content = testApplyAndRead "127.0.0.1 localhost # default\n" "192.168.1.1" "newhost.com"
     Assert.Contains("127.0.0.1 localhost # default", content)
-    Assert.Contains("192.168.1.1\tnewhost.com", content)
+    Assert.Contains("192.168.1.1 newhost.com", content)
 }
 
 [<Fact>]
 let ``Apply fails when hosts file does not exist``(): Task = upcast task {
-    let nonExistentPath = AbsolutePath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
+    let nonExistentPath = Temporary.CreateTempFile()
+    nonExistentPath.Delete() // Delete to make it non-existent
     let resource = HostFile.Record("192.168.1.1", "example.com", nonExistentPath)
     let! ex = Assert.ThrowsAsync<Exception>(fun () -> Async.StartAsTask(resource.Apply()) :> Task)
     Assert.Contains("Hosts file not found", ex.Message)
@@ -150,17 +152,17 @@ let ``Apply adds new entry when different host has same IP``(): Task = upcast ta
     let! content = testApplyAndRead "192.168.1.1 existinghost.com\n" "192.168.1.1" "newhost.com"
     // Should add a new line since the host doesn't exist yet
     Assert.Contains("192.168.1.1 existinghost.com", content)
-    Assert.Contains("192.168.1.1\tnewhost.com", content)
+    Assert.Contains("192.168.1.1 newhost.com", content)
 }
 
 [<Fact>]
 let ``Apply is idempotent``(): Task = upcast task {
     do! withTempFile (fun path -> task {
-        do! File.WriteAllTextAsync(path.Value, "127.0.0.1 localhost\n")
+        do! path.WriteAllTextAsync("127.0.0.1 localhost\n")
         let resource = HostFile.Record("192.168.1.1", "example.com", path)
         do! resource.Apply()
         do! resource.Apply()
-        let! content = File.ReadAllTextAsync(path.Value)
+        let! content = path.ReadAllTextAsync()
         let lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries)
         let matchingLines = lines |> Array.filter (fun line -> line.Contains("example.com"))
         Assert.Single(matchingLines) |> ignore
@@ -170,7 +172,7 @@ let ``Apply is idempotent``(): Task = upcast task {
 [<Fact>]
 let ``Apply and AlreadyApplied work together``(): Task = upcast task {
     do! withTempFile (fun path -> task {
-        do! File.WriteAllTextAsync(path.Value, "127.0.0.1 localhost\n")
+        do! path.WriteAllTextAsync("127.0.0.1 localhost\n")
         let resource = HostFile.Record("192.168.1.1", "example.com", path)
         let! beforeApply = resource.AlreadyApplied()
         Assert.False beforeApply
@@ -184,7 +186,9 @@ let ``Apply and AlreadyApplied work together``(): Task = upcast task {
 let ``DefaultHostsPath returns Windows path on Windows``(): unit =
     if RuntimeInformation.IsOSPlatform(OSPlatform.Windows) then
         let path = HostFile.DefaultHostsPath
-        Assert.Equal(@"C:\Windows\System32\drivers\etc\hosts", path.Value)
+        let systemFolder = Environment.GetFolderPath(Environment.SpecialFolder.System)
+        let expectedPath = Path.Combine(systemFolder, @"drivers\etc\hosts")
+        Assert.Equal(expectedPath, path.Value)
 
 [<Fact>]
 let ``DefaultHostsPath returns Unix path on non-Windows``(): unit =
