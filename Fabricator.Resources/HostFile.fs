@@ -128,11 +128,12 @@ type HostFile =
                                         else
                                             l
                                     )
-                        | None -> lines
+                        | None -> 
+                            failwithf $"Cannot parse line \"{line}\"."
                     | None ->
                         // Add new entry at the end
                         Array.append lines [| $"{ipAddress} {host}" |]
                 
-                do! Async.AwaitTask(File.WriteAllLinesAsync(filePath.Value, newLines, ct))
+                do! Async.AwaitTask(filePath.WriteAllLinesAsync(newLines, ct))
             }
         }

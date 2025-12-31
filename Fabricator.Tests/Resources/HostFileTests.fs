@@ -21,8 +21,7 @@ let private withTempFile (action: AbsolutePath -> Task<'a>): Task<'a> = task {
     try
         return! action tempPath
     finally
-        if tempPath.Exists() then
-            tempPath.Delete()
+        tempPath.Delete()
 }
 
 let private testAlreadyApplied (hostsContent: string) (ipAddress: string) (host: string) = 
@@ -50,16 +49,17 @@ let private testApplyAndRead (hostsContent: string) (ipAddress: string) (host: s
     })
 
 [<Fact>]
-let ``PresentableName returns correct format``(): Task = upcast task {
-    do! withTempFile (fun path -> task {
-        do! path.WriteAllTextAsync("")
-        let resource = HostFile.Record("127.0.0.1", "example.com", path)
+let ``PresentableName returns correct format``(): Task = task {
+    let tempPath = Temporary.CreateTempFile()
+    try
+        let resource = HostFile.Record("127.0.0.1", "example.com", tempPath)
         Assert.Equal("Host file entry \"example.com\"", resource.PresentableName)
-    })
+    finally
+        tempPath.Delete()
 }
 
 [<Fact>]
-let ``AlreadyApplied returns false when host file does not exist``(): Task = upcast task {
+let ``AlreadyApplied returns false when host file does not exist``(): Task = task {
     let tempPath = Temporary.CreateTempFile()
     tempPath.Delete() // Delete to make it non-existent
     let resource = HostFile.Record("127.0.0.1", "example.com", tempPath)
@@ -68,63 +68,63 @@ let ``AlreadyApplied returns false when host file does not exist``(): Task = upc
 }
 
 [<Fact>]
-let ``AlreadyApplied returns false when entry does not exist``(): Task = upcast task {
+let ``AlreadyApplied returns false when entry does not exist``(): Task = task {
     let! result = testAlreadyApplied "127.0.0.1 localhost\n192.168.1.1 router\n" "10.0.0.1" "newhost.com"
     Assert.False result
 }
 
 [<Fact>]
-let ``AlreadyApplied returns true when exact entry exists``(): Task = upcast task {
+let ``AlreadyApplied returns true when exact entry exists``(): Task = task {
     let! result = testAlreadyApplied "127.0.0.1 localhost\n192.168.1.1 example.com\n" "192.168.1.1" "example.com"
     Assert.True result
 }
 
 [<Fact>]
-let ``AlreadyApplied returns false when host exists with different IP``(): Task = upcast task {
+let ``AlreadyApplied returns false when host exists with different IP``(): Task = task {
     let! result = testAlreadyApplied "127.0.0.1 localhost\n192.168.1.1 example.com\n" "10.0.0.1" "example.com"
     Assert.False result
 }
 
 [<Fact>]
-let ``AlreadyApplied handles whitespace variations``(): Task = upcast task {
+let ``AlreadyApplied handles whitespace variations``(): Task = task {
     let! result = testAlreadyApplied "192.168.1.1    example.com\n" "192.168.1.1" "example.com"
     Assert.True result
 }
 
 [<Fact>]
-let ``AlreadyApplied ignores comment lines``(): Task = upcast task {
+let ``AlreadyApplied ignores comment lines``(): Task = task {
     let! result = testAlreadyApplied "# 192.168.1.1 example.com\n127.0.0.1 localhost\n" "192.168.1.1" "example.com"
     Assert.False result
 }
 
 [<Fact>]
-let ``AlreadyApplied handles inline comments``(): Task = upcast task {
+let ``AlreadyApplied handles inline comments``(): Task = task {
     let! result = testAlreadyApplied "192.168.1.1 example.com # this is a comment\n" "192.168.1.1" "example.com"
     Assert.True result
 }
 
 [<Fact>]
-let ``AlreadyApplied handles multi-host entries``(): Task = upcast task {
+let ``AlreadyApplied handles multi-host entries``(): Task = task {
     let! result = testAlreadyApplied "192.168.1.1 example.com another.com\n" "192.168.1.1" "example.com"
     Assert.True result
 }
 
 [<Fact>]
-let ``Apply adds new entry when host does not exist``(): Task = upcast task {
+let ``Apply adds new entry when host does not exist``(): Task = task {
     let! content = testApplyAndRead "127.0.0.1 localhost\n" "192.168.1.1" "example.com"
     Assert.Contains("192.168.1.1 example.com", content)
     Assert.Contains("127.0.0.1 localhost", content)
 }
 
 [<Fact>]
-let ``Apply replaces existing entry with different IP``(): Task = upcast task {
+let ``Apply replaces existing entry with different IP``(): Task = task {
     let! content = testApplyAndRead "127.0.0.1 localhost\n192.168.1.1 example.com\n" "10.0.0.1" "example.com"
     Assert.Contains("10.0.0.1 example.com", content)
     Assert.DoesNotContain("192.168.1.1 example.com", content)
 }
 
 [<Fact>]
-let ``Apply splits multi-host entry when updating IP``(): Task = upcast task {
+let ``Apply splits multi-host entry when updating IP``(): Task = task {
     let! content = testApplyAndRead "192.168.1.1 example.com another.com\n" "10.0.0.1" "example.com"
     Assert.Contains("10.0.0.1 example.com", content)
     Assert.Contains("192.168.1.1 another.com", content)
@@ -132,14 +132,23 @@ let ``Apply splits multi-host entry when updating IP``(): Task = upcast task {
 }
 
 [<Fact>]
-let ``Apply preserves inline comments``(): Task = upcast task {
+let ``Apply splits multi-host entry with inline comment``(): Task = task {
+    let! content = testApplyAndRead "192.168.1.1 example.com another.com # production hosts\n" "10.0.0.1" "example.com"
+    Assert.Contains("10.0.0.1 example.com", content)
+    Assert.Contains("192.168.1.1 another.com", content)
+    // The inline comment is not expected to be preserved when splitting
+    Assert.DoesNotContain("192.168.1.1 example.com another.com", content)
+}
+
+[<Fact>]
+let ``Apply preserves inline comments``(): Task = task {
     let! content = testApplyAndRead "127.0.0.1 localhost # default\n" "192.168.1.1" "newhost.com"
     Assert.Contains("127.0.0.1 localhost # default", content)
     Assert.Contains("192.168.1.1 newhost.com", content)
 }
 
 [<Fact>]
-let ``Apply fails when hosts file does not exist``(): Task = upcast task {
+let ``Apply fails when hosts file does not exist``(): Task = task {
     let nonExistentPath = Temporary.CreateTempFile()
     nonExistentPath.Delete() // Delete to make it non-existent
     let resource = HostFile.Record("192.168.1.1", "example.com", nonExistentPath)
@@ -148,7 +157,7 @@ let ``Apply fails when hosts file does not exist``(): Task = upcast task {
 }
 
 [<Fact>]
-let ``Apply adds new entry when different host has same IP``(): Task = upcast task {
+let ``Apply adds new entry when different host has same IP``(): Task = task {
     let! content = testApplyAndRead "192.168.1.1 existinghost.com\n" "192.168.1.1" "newhost.com"
     // Should add a new line since the host doesn't exist yet
     Assert.Contains("192.168.1.1 existinghost.com", content)
@@ -156,7 +165,7 @@ let ``Apply adds new entry when different host has same IP``(): Task = upcast ta
 }
 
 [<Fact>]
-let ``Apply is idempotent``(): Task = upcast task {
+let ``Apply is idempotent``(): Task = task {
     do! withTempFile (fun path -> task {
         do! path.WriteAllTextAsync("127.0.0.1 localhost\n")
         let resource = HostFile.Record("192.168.1.1", "example.com", path)
@@ -170,7 +179,7 @@ let ``Apply is idempotent``(): Task = upcast task {
 }
 
 [<Fact>]
-let ``Apply and AlreadyApplied work together``(): Task = upcast task {
+let ``Apply and AlreadyApplied work together``(): Task = task {
     do! withTempFile (fun path -> task {
         do! path.WriteAllTextAsync("127.0.0.1 localhost\n")
         let resource = HostFile.Record("192.168.1.1", "example.com", path)
