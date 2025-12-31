@@ -146,6 +146,14 @@ let ``Apply fails when hosts file does not exist``(): Task = upcast task {
 }
 
 [<Fact>]
+let ``Apply adds new entry when different host has same IP``(): Task = upcast task {
+    let! content = testApplyAndRead "192.168.1.1 existinghost.com\n" "192.168.1.1" "newhost.com"
+    // Should add a new line since the host doesn't exist yet
+    Assert.Contains("192.168.1.1 existinghost.com", content)
+    Assert.Contains("192.168.1.1\tnewhost.com", content)
+}
+
+[<Fact>]
 let ``Apply is idempotent``(): Task = upcast task {
     do! withTempFile (fun path -> task {
         do! File.WriteAllTextAsync(path.Value, "127.0.0.1 localhost\n")

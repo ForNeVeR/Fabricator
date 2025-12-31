@@ -107,15 +107,15 @@ type HostFile =
                         let line = lines.[index]
                         match parseEntry line with
                         | Some (ip, hosts) ->
-                            if ip = expectedIp then
-                                // IP matches, line is already correct
+                            if ip = expectedIp && hosts |> Array.exists (fun h -> h = expectedHost) then
+                                // IP and host both match, line is already correct
                                 lines
                             else
-                                // IP differs, need to update or split
+                                // IP differs or host in multi-host entry needs to be moved
                                 let otherHosts = hosts |> Array.filter (fun h -> h <> expectedHost)
                                 if otherHosts.Length > 0 then
                                     // Multi-host entry: split into two lines
-                                    let joinedHosts = String.Join(" ", otherHosts)
+                                    let joinedHosts = String.Join("\t", otherHosts)
                                     let updatedLine = $"{ip}\t{joinedHosts}"
                                     let newLine = $"{ipAddress}\t{host}"
                                     lines 
