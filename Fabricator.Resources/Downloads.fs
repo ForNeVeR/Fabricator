@@ -43,7 +43,8 @@ type private DownloadResource(uri: Uri, expectedHash: Sha256Hash, downloadPath: 
             let! downloadedHash = calcHash downloadPath
             if downloadedHash <> Some expectedHash then
                 downloadPath.Delete()
-                failwithf $"Hash mismatch for URL \"{uri}\":\nexpected hash {expectedHash},\nactual hash   {downloadedHash}."
+                let actualHashStr = downloadedHash |> Option.map string |> Option.defaultValue "None"
+                failwithf $"Hash mismatch for URL \"{uri}\":\nexpected hash {expectedHash},\nactual hash   {actualHashStr}."
         }
 
 let downloadFile(uri: Uri, hash: Sha256Hash, path: AbsolutePath): IResource =
