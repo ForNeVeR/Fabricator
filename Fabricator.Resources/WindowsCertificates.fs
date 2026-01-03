@@ -110,7 +110,7 @@ let installCertificate (certificatePath: string) (storeLocation: CertificateStor
                 let certificate = cert.Value
                 return isCertificateInStore certificate storeLocation
             with
-            | ex -> return! async { return failwithf $"Failed to check certificate status: {ex.Message}" }
+            | ex -> return failwithf $"Failed to check certificate status: {ex.Message}"
         }
         
         member this.Apply() = async {
@@ -118,6 +118,6 @@ let installCertificate (certificatePath: string) (storeLocation: CertificateStor
                 let certificate = cert.Value
                 addCertificateToStore certificate storeLocation
             with
-            | ex -> return! async { return failwithf $"Failed to install certificate: {ex.Message}" }
+            | ex -> return failwithf $"Failed to install certificate: {ex.Message}"
         }
     }
