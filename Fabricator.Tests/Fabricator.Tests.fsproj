@@ -15,6 +15,7 @@ SPDX-License-Identifier: MIT
         <Compile Include="Console\EntryPointTests.fs" />
         <Compile Include="Resources\FileTests.fs" />
         <Compile Include="Resources\HostsFileTests.fs" />
+        <Compile Include="Resources\WindowsCertificatesTests.fs" />
     </ItemGroup>
 
     <ItemGroup>
