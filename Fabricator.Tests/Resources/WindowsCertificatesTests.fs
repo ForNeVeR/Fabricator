@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 Friedrich von Never <friedrich@fornever.me>
+// SPDX-FileCopyrightText: 2026 Friedrich von Never <friedrich@fornever.me>
 //
 // SPDX-License-Identifier: MIT
 
@@ -12,7 +12,6 @@ open System.Security.Cryptography.X509Certificates
 open System.Threading.Tasks
 open FSharp.Control.Tasks
 open Xunit
-open Fabricator.Core
 open Fabricator.Resources.WindowsCertificates
 open TruePath
 open TruePath.SystemIo
@@ -26,16 +25,16 @@ let private createTestCertificate() =
         HashAlgorithmName.SHA256,
         RSASignaturePadding.Pkcs1
     )
-    
+
     request.CertificateExtensions.Add(
         X509BasicConstraintsExtension(false, false, 0, true)
     )
-    
+
     let certificate = request.CreateSelfSigned(
         DateTimeOffset.UtcNow.AddDays(-1.0),
         DateTimeOffset.UtcNow.AddDays(365.0)
     )
-    
+
     certificate
 
 // Helper to save certificate to a temporary file
@@ -90,7 +89,7 @@ let ``AlreadyApplied returns false when certificate not in store``(): Task = tas
         do! withTempCertificate (fun cert tempFile -> task {
             // Ensure certificate is not in store
             removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
-            
+
             do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
                 let! result = resource.AlreadyApplied()
@@ -109,7 +108,7 @@ let ``AlreadyApplied returns true when certificate already in store``(): Task = 
             use store = new X509Store(StoreName.My, StoreLocation.CurrentUser)
             store.Open(OpenFlags.ReadWrite)
             store.Add(cert)
-            
+
             do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
                 let! result = resource.AlreadyApplied()
@@ -126,11 +125,11 @@ let ``Apply installs certificate to store``(): Task = task {
         do! withTempCertificate (fun cert tempFile -> task {
             // Ensure certificate is not in store
             removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
-            
+
             do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
                 do! resource.Apply()
-                
+
                 // Verify certificate is now in store
                 use store = new X509Store(StoreName.My, StoreLocation.CurrentUser)
                 store.Open(OpenFlags.ReadOnly)
@@ -148,12 +147,12 @@ let ``Apply is idempotent``(): Task = task {
         do! withTempCertificate (fun cert tempFile -> task {
             // Ensure certificate is not in store
             removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
-            
+
             do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
                 do! resource.Apply()
                 do! resource.Apply() // Apply twice
-                
+
                 // Verify certificate is in store only once
                 use store = new X509Store(StoreName.My, StoreLocation.CurrentUser)
                 store.Open(OpenFlags.ReadOnly)
@@ -171,14 +170,14 @@ let ``Apply and AlreadyApplied work together``(): Task = task {
         do! withTempCertificate (fun cert tempFile -> task {
             // Ensure certificate is not in store
             removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
-            
+
             do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
                 let! beforeApply = resource.AlreadyApplied()
                 Assert.False beforeApply
-                
+
                 do! resource.Apply()
-                
+
                 let! afterApply = resource.AlreadyApplied()
                 Assert.True afterApply
             })
@@ -190,7 +189,7 @@ let ``trustedCertificate fails with non-existent file``(): Task = task {
     let tempDir = Temporary.SystemTempDirectory()
     let nonExistentFile = tempDir / (Guid.NewGuid().ToString() + ".cer")
     let resource = trustedCertificate nonExistentFile CertificateStores.CurrentUserPersonal
-    
+
     let! ex = Assert.ThrowsAsync<Exception>(fun () -> Async.StartAsTask(resource.AlreadyApplied()) :> Task)
     Assert.Contains("Certificate file does not exist", ex.Message)
 }

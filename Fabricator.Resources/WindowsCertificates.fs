@@ -1,11 +1,9 @@
-// SPDX-FileCopyrightText: 2025 Friedrich von Never <friedrich@fornever.me>
+// SPDX-FileCopyrightText: 2026 Friedrich von Never <friedrich@fornever.me>
 //
 // SPDX-License-Identifier: MIT
 
 module Fabricator.Resources.WindowsCertificates
 
-open System
-open System.IO
 open System.Security.Cryptography.X509Certificates
 open Fabricator.Core
 open TruePath
@@ -33,7 +31,7 @@ module CertificateStores =
         Location = StoreLocation.LocalMachine
         StoreName = StoreName.Root
     }
-    
+
     /// <summary>
     /// Personal certificate store in Local Machine.
     /// Equivalent to Cert:\LocalMachine\My in PowerShell.
@@ -42,7 +40,7 @@ module CertificateStores =
         Location = StoreLocation.LocalMachine
         StoreName = StoreName.My
     }
-    
+
     /// <summary>
     /// Trusted Root Certification Authorities in Current User.
     /// Equivalent to Cert:\CurrentUser\Root in PowerShell.
@@ -51,7 +49,7 @@ module CertificateStores =
         Location = StoreLocation.CurrentUser
         StoreName = StoreName.Root
     }
-    
+
     /// <summary>
     /// Personal certificate store in Current User.
     /// Equivalent to Cert:\CurrentUser\My in PowerShell.
@@ -101,16 +99,16 @@ let private addCertificateToStore (cert: X509Certificate2) (storeLocation: Certi
 /// </example>
 let trustedCertificate (certificatePath: AbsolutePath) (storeLocation: CertificateStoreLocation): IResource =
     let cert = lazy (getCertificateFromFile certificatePath)
-    
+
     { new IResource with
         member this.PresentableName =
             $"Certificate \"{certificatePath.FileName}\" in {storeLocation.Location}/{storeLocation.StoreName}"
-        
+
         member this.AlreadyApplied() = async {
             let certificate = cert.Value
             return isCertificateInStore certificate storeLocation
         }
-        
+
         member this.Apply() = async {
             let certificate = cert.Value
             addCertificateToStore certificate storeLocation
