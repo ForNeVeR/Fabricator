@@ -24,12 +24,12 @@ type CertificateStoreLocation = {
 /// <summary>
 /// Common certificate store locations for convenience.
 /// </summary>
-type CertificateStores =
+module CertificateStores =
     /// <summary>
     /// Trusted Root Certification Authorities in Local Machine.
     /// Equivalent to Cert:\LocalMachine\Root in PowerShell.
     /// </summary>
-    static member LocalMachineTrustedRootCertificationAuthorities = {
+    let LocalMachineTrustedRootCertificationAuthorities = {
         Location = StoreLocation.LocalMachine
         StoreName = StoreName.Root
     }
@@ -38,7 +38,7 @@ type CertificateStores =
     /// Personal certificate store in Local Machine.
     /// Equivalent to Cert:\LocalMachine\My in PowerShell.
     /// </summary>
-    static member LocalMachinePersonal = {
+    let LocalMachinePersonal = {
         Location = StoreLocation.LocalMachine
         StoreName = StoreName.My
     }
@@ -47,7 +47,7 @@ type CertificateStores =
     /// Trusted Root Certification Authorities in Current User.
     /// Equivalent to Cert:\CurrentUser\Root in PowerShell.
     /// </summary>
-    static member CurrentUserTrustedRootCertificationAuthorities = {
+    let CurrentUserTrustedRootCertificationAuthorities = {
         Location = StoreLocation.CurrentUser
         StoreName = StoreName.Root
     }
@@ -56,7 +56,7 @@ type CertificateStores =
     /// Personal certificate store in Current User.
     /// Equivalent to Cert:\CurrentUser\My in PowerShell.
     /// </summary>
-    static member CurrentUserPersonal = {
+    let CurrentUserPersonal = {
         Location = StoreLocation.CurrentUser
         StoreName = StoreName.My
     }

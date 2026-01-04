@@ -50,8 +50,8 @@ let private removeCertificateFromStore (cert: X509Certificate2) (storeLocation: 
     use store = new X509Store(storeLocation.StoreName, storeLocation.Location)
     store.Open(OpenFlags.ReadWrite)
     let existing = store.Certificates.Find(X509FindType.FindByThumbprint, cert.Thumbprint, false)
-    if existing.Count > 0 then
-        store.Remove(existing.[0])
+    for existingCert in existing do
+        store.Remove(existingCert)
 
 // Helper function to ensure certificate cleanup after test
 let private withCertificateCleanup (cert: X509Certificate2) (storeLocation: CertificateStoreLocation) (action: unit -> Task<'a>): Task<'a> = task {
