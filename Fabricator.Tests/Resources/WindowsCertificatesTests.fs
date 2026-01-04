@@ -14,6 +14,8 @@ open FSharp.Control.Tasks
 open Xunit
 open Fabricator.Core
 open Fabricator.Resources.WindowsCertificates
+open TruePath
+open TruePath.SystemIo
 
 // Helper to create a temporary self-signed certificate for testing
 let private createTestCertificate() =
@@ -38,9 +40,9 @@ let private createTestCertificate() =
 
 // Helper to save certificate to a temporary file
 let private saveCertificateToTempFile (cert: X509Certificate2) =
-    let tempFile = Path.GetTempFileName()
+    let tempFile = Temporary.CreateTempFile()
     let certBytes = cert.Export(X509ContentType.Cert)
-    File.WriteAllBytes(tempFile, certBytes)
+    File.WriteAllBytes(tempFile.Value, certBytes)
     tempFile
 
 // Helper to remove certificate from store if it exists
@@ -52,143 +54,170 @@ let private removeCertificateFromStore (cert: X509Certificate2) (storeLocation: 
         store.Remove(existing.[0])
 
 // Helper function to run a test with a temporary certificate file
-let private withTempCertificate (action: X509Certificate2 -> string -> Task<'a>): Task<'a> = task {
+let private withTempCertificate (action: X509Certificate2 -> AbsolutePath -> Task<'a>): Task<'a> = task {
     use cert = createTestCertificate()
     let tempFile = saveCertificateToTempFile cert
     try
         return! action cert tempFile
     finally
-        if File.Exists(tempFile) then
-            File.Delete(tempFile)
-}
-
-[<Fact(Skip="Windows-only test - requires Windows certificate store")>]
-let ``PresentableName returns correct format``(): Task = task {
-    do! withTempCertificate (fun cert tempFile -> task {
-        let resource = installCertificate tempFile CertificateStores.CurrentUserMy
-        let fileName = Path.GetFileName(tempFile)
-        Assert.Equal($"Certificate \"{fileName}\" in CurrentUser/My", resource.PresentableName)
-    })
-}
-
-[<Fact(Skip="Windows-only test - requires Windows certificate store")>]
-let ``AlreadyApplied returns false when certificate not in store``(): Task = task {
-    do! withTempCertificate (fun cert tempFile -> task {
-        // Ensure certificate is not in store
-        removeCertificateFromStore cert CertificateStores.CurrentUserMy
-        
-        let resource = installCertificate tempFile CertificateStores.CurrentUserMy
-        let! result = resource.AlreadyApplied()
-        Assert.False result
-    })
-}
-
-[<Fact(Skip="Windows-only test - requires Windows certificate store")>]
-let ``AlreadyApplied returns true when certificate already in store``(): Task = task {
-    do! withTempCertificate (fun cert tempFile -> task {
-        // Install certificate first
-        use store = new X509Store(StoreName.My, StoreLocation.CurrentUser)
-        store.Open(OpenFlags.ReadWrite)
-        store.Add(cert)
-        
-        try
-            let resource = installCertificate tempFile CertificateStores.CurrentUserMy
-            let! result = resource.AlreadyApplied()
-            Assert.True result
-        finally
-            // Clean up
-            removeCertificateFromStore cert CertificateStores.CurrentUserMy
-    })
-}
-
-[<Fact(Skip="Windows-only test - requires Windows certificate store")>]
-let ``Apply installs certificate to store``(): Task = task {
-    do! withTempCertificate (fun cert tempFile -> task {
-        // Ensure certificate is not in store
-        removeCertificateFromStore cert CertificateStores.CurrentUserMy
-        
-        try
-            let resource = installCertificate tempFile CertificateStores.CurrentUserMy
-            do! resource.Apply()
-            
-            // Verify certificate is now in store
-            use store = new X509Store(StoreName.My, StoreLocation.CurrentUser)
-            store.Open(OpenFlags.ReadOnly)
-            let found = store.Certificates.Find(X509FindType.FindByThumbprint, cert.Thumbprint, false)
-            Assert.Equal(1, found.Count)
-        finally
-            // Clean up
-            removeCertificateFromStore cert CertificateStores.CurrentUserMy
-    })
-}
-
-[<Fact(Skip="Windows-only test - requires Windows certificate store")>]
-let ``Apply is idempotent``(): Task = task {
-    do! withTempCertificate (fun cert tempFile -> task {
-        // Ensure certificate is not in store
-        removeCertificateFromStore cert CertificateStores.CurrentUserMy
-        
-        try
-            let resource = installCertificate tempFile CertificateStores.CurrentUserMy
-            do! resource.Apply()
-            do! resource.Apply() // Apply twice
-            
-            // Verify certificate is in store only once
-            use store = new X509Store(StoreName.My, StoreLocation.CurrentUser)
-            store.Open(OpenFlags.ReadOnly)
-            let found = store.Certificates.Find(X509FindType.FindByThumbprint, cert.Thumbprint, false)
-            Assert.Equal(1, found.Count)
-        finally
-            // Clean up
-            removeCertificateFromStore cert CertificateStores.CurrentUserMy
-    })
-}
-
-[<Fact(Skip="Windows-only test - requires Windows certificate store")>]
-let ``Apply and AlreadyApplied work together``(): Task = task {
-    do! withTempCertificate (fun cert tempFile -> task {
-        // Ensure certificate is not in store
-        removeCertificateFromStore cert CertificateStores.CurrentUserMy
-        
-        try
-            let resource = installCertificate tempFile CertificateStores.CurrentUserMy
-            let! beforeApply = resource.AlreadyApplied()
-            Assert.False beforeApply
-            
-            do! resource.Apply()
-            
-            let! afterApply = resource.AlreadyApplied()
-            Assert.True afterApply
-        finally
-            // Clean up
-            removeCertificateFromStore cert CertificateStores.CurrentUserMy
-    })
+        tempFile.Delete()
 }
 
 [<Fact>]
-let ``installCertificate fails with non-existent file``(): Task = task {
-    let nonExistentFile = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".cer")
-    let resource = installCertificate nonExistentFile CertificateStores.CurrentUserMy
+let ``PresentableName returns correct format``(): Task = task {
+    if not (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) then
+        () // Skip on non-Windows
+    else
+        do! withTempCertificate (fun cert tempFile -> task {
+            let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
+            let fileName = Path.GetFileName(tempFile.Value)
+            Assert.Equal($"Certificate \"{fileName}\" in CurrentUser/My", resource.PresentableName)
+        })
+}
+
+[<Fact>]
+let ``AlreadyApplied returns false when certificate not in store``(): Task = task {
+    if not (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) then
+        () // Skip on non-Windows
+    else
+        do! withTempCertificate (fun cert tempFile -> task {
+            // Ensure certificate is not in store
+            removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+            
+            try
+                let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
+                let! result = resource.AlreadyApplied()
+                Assert.False result
+            finally
+                // Clean up
+                removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+        })
+}
+
+[<Fact>]
+let ``AlreadyApplied returns true when certificate already in store``(): Task = task {
+    if not (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) then
+        () // Skip on non-Windows
+    else
+        do! withTempCertificate (fun cert tempFile -> task {
+            // Install certificate first
+            use store = new X509Store(StoreName.My, StoreLocation.CurrentUser)
+            store.Open(OpenFlags.ReadWrite)
+            store.Add(cert)
+            
+            try
+                let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
+                let! result = resource.AlreadyApplied()
+                Assert.True result
+            finally
+                // Clean up
+                removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+        })
+}
+
+[<Fact>]
+let ``Apply installs certificate to store``(): Task = task {
+    if not (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) then
+        () // Skip on non-Windows
+    else
+        do! withTempCertificate (fun cert tempFile -> task {
+            // Ensure certificate is not in store
+            removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+            
+            try
+                let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
+                do! resource.Apply()
+                
+                // Verify certificate is now in store
+                use store = new X509Store(StoreName.My, StoreLocation.CurrentUser)
+                store.Open(OpenFlags.ReadOnly)
+                let found = store.Certificates.Find(X509FindType.FindByThumbprint, cert.Thumbprint, false)
+                Assert.Equal(1, found.Count)
+            finally
+                // Clean up
+                removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+        })
+}
+
+[<Fact>]
+let ``Apply is idempotent``(): Task = task {
+    if not (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) then
+        () // Skip on non-Windows
+    else
+        do! withTempCertificate (fun cert tempFile -> task {
+            // Ensure certificate is not in store
+            removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+            
+            try
+                let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
+                do! resource.Apply()
+                do! resource.Apply() // Apply twice
+                
+                // Verify certificate is in store only once
+                use store = new X509Store(StoreName.My, StoreLocation.CurrentUser)
+                store.Open(OpenFlags.ReadOnly)
+                let found = store.Certificates.Find(X509FindType.FindByThumbprint, cert.Thumbprint, false)
+                Assert.Equal(1, found.Count)
+            finally
+                // Clean up
+                removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+        })
+}
+
+[<Fact>]
+let ``Apply and AlreadyApplied work together``(): Task = task {
+    if not (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) then
+        () // Skip on non-Windows
+    else
+        do! withTempCertificate (fun cert tempFile -> task {
+            // Ensure certificate is not in store
+            removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+            
+            try
+                let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
+                let! beforeApply = resource.AlreadyApplied()
+                Assert.False beforeApply
+                
+                do! resource.Apply()
+                
+                let! afterApply = resource.AlreadyApplied()
+                Assert.True afterApply
+            finally
+                // Clean up
+                removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+        })
+}
+
+[<Fact>]
+let ``trustedCertificate fails with non-existent file``(): Task = task {
+    let nonExistentFile = AbsolutePath(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".cer"))
+    let resource = trustedCertificate nonExistentFile CertificateStores.CurrentUserPersonal
     
     let! ex = Assert.ThrowsAsync<Exception>(fun () -> Async.StartAsTask(resource.AlreadyApplied()) :> Task)
     Assert.Contains("Certificate file does not exist", ex.Message)
 }
 
-[<Fact(Skip="Windows-only test - requires Windows certificate store")>]
-let ``Works with LocalMachineRoot store location``(): Task = task {
-    do! withTempCertificate (fun cert tempFile -> task {
-        let resource = installCertificate tempFile CertificateStores.LocalMachineRoot
-        let fileName = Path.GetFileName(tempFile)
-        Assert.Equal($"Certificate \"{fileName}\" in LocalMachine/Root", resource.PresentableName)
-    })
+[<Fact>]
+let ``Works with LocalMachineTrustedRootCertificationAuthorities store location``(): Task = task {
+    if not (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) then
+        () // Skip on non-Windows
+    else
+        do! withTempCertificate (fun cert tempFile -> task {
+            let resource = trustedCertificate tempFile CertificateStores.LocalMachineTrustedRootCertificationAuthorities
+            let fileName = Path.GetFileName(tempFile.Value)
+            Assert.Equal($"Certificate \"{fileName}\" in LocalMachine/Root", resource.PresentableName)
+        })
 }
 
-[<Fact(Skip="Windows-only test - requires Windows certificate store")>]
+[<Fact>]
 let ``Works with custom store location``(): Task = task {
-    do! withTempCertificate (fun cert tempFile -> task {
-        let customStore = { Location = StoreLocation.CurrentUser; StoreName = StoreName.CertificateAuthority }
-        let resource = installCertificate tempFile customStore
-        let fileName = Path.GetFileName(tempFile)
-        Assert.Equal($"Certificate \"{fileName}\" in CurrentUser/CertificateAuthority", resource.PresentableName)
-    })
+    if not (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) then
+        () // Skip on non-Windows
+    else
+        do! withTempCertificate (fun cert tempFile -> task {
+            let customStore = { Location = StoreLocation.CurrentUser; StoreName = StoreName.CertificateAuthority }
+            let resource = trustedCertificate tempFile customStore
+            let fileName = Path.GetFileName(tempFile.Value)
+            Assert.Equal($"Certificate \"{fileName}\" in CurrentUser/CertificateAuthority", resource.PresentableName)
+        })
 }

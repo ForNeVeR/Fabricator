@@ -8,6 +8,8 @@ open System
 open System.IO
 open System.Security.Cryptography.X509Certificates
 open Fabricator.Core
+open TruePath
+open TruePath.SystemIo
 
 /// <summary>
 /// Represents a certificate store location and name for certificate installation.
@@ -27,7 +29,7 @@ type CertificateStores =
     /// Trusted Root Certification Authorities in Local Machine.
     /// Equivalent to Cert:\LocalMachine\Root in PowerShell.
     /// </summary>
-    static member LocalMachineRoot = {
+    static member LocalMachineTrustedRootCertificationAuthorities = {
         Location = StoreLocation.LocalMachine
         StoreName = StoreName.Root
     }
@@ -36,7 +38,7 @@ type CertificateStores =
     /// Personal certificate store in Local Machine.
     /// Equivalent to Cert:\LocalMachine\My in PowerShell.
     /// </summary>
-    static member LocalMachineMy = {
+    static member LocalMachinePersonal = {
         Location = StoreLocation.LocalMachine
         StoreName = StoreName.My
     }
@@ -45,7 +47,7 @@ type CertificateStores =
     /// Trusted Root Certification Authorities in Current User.
     /// Equivalent to Cert:\CurrentUser\Root in PowerShell.
     /// </summary>
-    static member CurrentUserRoot = {
+    static member CurrentUserTrustedRootCertificationAuthorities = {
         Location = StoreLocation.CurrentUser
         StoreName = StoreName.Root
     }
@@ -54,15 +56,15 @@ type CertificateStores =
     /// Personal certificate store in Current User.
     /// Equivalent to Cert:\CurrentUser\My in PowerShell.
     /// </summary>
-    static member CurrentUserMy = {
+    static member CurrentUserPersonal = {
         Location = StoreLocation.CurrentUser
         StoreName = StoreName.My
     }
 
-let private getCertificateFromFile (path: string) =
-    if not (File.Exists path) then
-        failwithf $"Certificate file does not exist: {path}"
-    X509CertificateLoader.LoadCertificateFromFile(path)
+let private getCertificateFromFile (path: AbsolutePath) =
+    if not(path.Exists()) then
+        failwithf $"Certificate file does not exist: {path.Value}"
+    X509CertificateLoader.LoadCertificateFromFile(path.Value)
 
 let private isCertificateInStore (cert: X509Certificate2) (storeLocation: CertificateStoreLocation) =
     use store = new X509Store(storeLocation.StoreName, storeLocation.Location)
@@ -94,30 +96,24 @@ let private addCertificateToStore (cert: X509Certificate2) (storeLocation: Certi
 /// <example>
 /// Install a certificate to the Local Machine Root store:
 /// <code>
-/// let certResource = installCertificate("C:\\certs\\mycert.cer", CertificateStores.LocalMachineRoot)
+/// let certResource = trustedCertificate(AbsolutePath @"C:\certs\mycert.cer", CertificateStores.LocalMachineTrustedRootCertificationAuthorities)
 /// </code>
 /// </example>
-let installCertificate (certificatePath: string) (storeLocation: CertificateStoreLocation): IResource =
+let trustedCertificate (certificatePath: AbsolutePath) (storeLocation: CertificateStoreLocation): IResource =
     let cert = lazy (getCertificateFromFile certificatePath)
     
     { new IResource with
         member this.PresentableName =
-            let fileName = Path.GetFileName(certificatePath)
+            let fileName = Path.GetFileName(certificatePath.Value)
             $"Certificate \"{fileName}\" in {storeLocation.Location}/{storeLocation.StoreName}"
         
         member this.AlreadyApplied() = async {
-            try
-                let certificate = cert.Value
-                return isCertificateInStore certificate storeLocation
-            with
-            | ex -> return failwithf $"Failed to check certificate status: {ex.Message}"
+            let certificate = cert.Value
+            return isCertificateInStore certificate storeLocation
         }
         
         member this.Apply() = async {
-            try
-                let certificate = cert.Value
-                addCertificateToStore certificate storeLocation
-            with
-            | ex -> return failwithf $"Failed to install certificate: {ex.Message}"
+            let certificate = cert.Value
+            addCertificateToStore certificate storeLocation
         }
     }

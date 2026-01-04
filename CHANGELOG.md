@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 ### Added
-- New `WindowsCertificates.installCertificate` resource to install X.509 certificates to Windows certificate stores. This is a pure .NET implementation equivalent to PowerShell's `Import-Certificate` command, with parameterizable certificate store locations.
+- New `WindowsCertificates.trustedCertificate` resource to install X.509 certificates to Windows certificate stores. This is a pure .NET implementation equivalent to PowerShell's `Import-Certificate` command, with parameterizable certificate store locations.
 
 ## [0.3.0] - 2025-12-31
 ### Changed
