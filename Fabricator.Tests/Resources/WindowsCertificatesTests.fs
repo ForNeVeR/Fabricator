@@ -53,6 +53,14 @@ let private removeCertificateFromStore (cert: X509Certificate2) (storeLocation: 
     if existing.Count > 0 then
         store.Remove(existing.[0])
 
+// Helper function to ensure certificate cleanup after test
+let private withCertificateCleanup (cert: X509Certificate2) (storeLocation: CertificateStoreLocation) (action: unit -> Task<'a>): Task<'a> = task {
+    try
+        return! action()
+    finally
+        removeCertificateFromStore cert storeLocation
+}
+
 // Helper function to run a test with a temporary certificate file
 let private withTempCertificate (action: X509Certificate2 -> AbsolutePath -> Task<'a>): Task<'a> = task {
     use cert = createTestCertificate()
@@ -70,8 +78,7 @@ let ``PresentableName returns correct format``(): Task = task {
     else
         do! withTempCertificate (fun cert tempFile -> task {
             let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
-            let fileName = Path.GetFileName(tempFile.Value)
-            Assert.Equal($"Certificate \"{fileName}\" in CurrentUser/My", resource.PresentableName)
+            Assert.Equal($"Certificate \"{tempFile.FileName}\" in CurrentUser/My", resource.PresentableName)
         })
 }
 
@@ -84,13 +91,11 @@ let ``AlreadyApplied returns false when certificate not in store``(): Task = tas
             // Ensure certificate is not in store
             removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
             
-            try
+            do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
                 let! result = resource.AlreadyApplied()
                 Assert.False result
-            finally
-                // Clean up
-                removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+            })
         })
 }
 
@@ -105,13 +110,11 @@ let ``AlreadyApplied returns true when certificate already in store``(): Task = 
             store.Open(OpenFlags.ReadWrite)
             store.Add(cert)
             
-            try
+            do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
                 let! result = resource.AlreadyApplied()
                 Assert.True result
-            finally
-                // Clean up
-                removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+            })
         })
 }
 
@@ -124,7 +127,7 @@ let ``Apply installs certificate to store``(): Task = task {
             // Ensure certificate is not in store
             removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
             
-            try
+            do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
                 do! resource.Apply()
                 
@@ -133,9 +136,7 @@ let ``Apply installs certificate to store``(): Task = task {
                 store.Open(OpenFlags.ReadOnly)
                 let found = store.Certificates.Find(X509FindType.FindByThumbprint, cert.Thumbprint, false)
                 Assert.Equal(1, found.Count)
-            finally
-                // Clean up
-                removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+            })
         })
 }
 
@@ -148,7 +149,7 @@ let ``Apply is idempotent``(): Task = task {
             // Ensure certificate is not in store
             removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
             
-            try
+            do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
                 do! resource.Apply()
                 do! resource.Apply() // Apply twice
@@ -158,9 +159,7 @@ let ``Apply is idempotent``(): Task = task {
                 store.Open(OpenFlags.ReadOnly)
                 let found = store.Certificates.Find(X509FindType.FindByThumbprint, cert.Thumbprint, false)
                 Assert.Equal(1, found.Count)
-            finally
-                // Clean up
-                removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+            })
         })
 }
 
@@ -173,7 +172,7 @@ let ``Apply and AlreadyApplied work together``(): Task = task {
             // Ensure certificate is not in store
             removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
             
-            try
+            do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate tempFile CertificateStores.CurrentUserPersonal
                 let! beforeApply = resource.AlreadyApplied()
                 Assert.False beforeApply
@@ -182,15 +181,14 @@ let ``Apply and AlreadyApplied work together``(): Task = task {
                 
                 let! afterApply = resource.AlreadyApplied()
                 Assert.True afterApply
-            finally
-                // Clean up
-                removeCertificateFromStore cert CertificateStores.CurrentUserPersonal
+            })
         })
 }
 
 [<Fact>]
 let ``trustedCertificate fails with non-existent file``(): Task = task {
-    let nonExistentFile = AbsolutePath(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".cer"))
+    let tempDir = Temporary.SystemTempDirectory()
+    let nonExistentFile = tempDir / (Guid.NewGuid().ToString() + ".cer")
     let resource = trustedCertificate nonExistentFile CertificateStores.CurrentUserPersonal
     
     let! ex = Assert.ThrowsAsync<Exception>(fun () -> Async.StartAsTask(resource.AlreadyApplied()) :> Task)
@@ -204,8 +202,7 @@ let ``Works with LocalMachineTrustedRootCertificationAuthorities store location`
     else
         do! withTempCertificate (fun cert tempFile -> task {
             let resource = trustedCertificate tempFile CertificateStores.LocalMachineTrustedRootCertificationAuthorities
-            let fileName = Path.GetFileName(tempFile.Value)
-            Assert.Equal($"Certificate \"{fileName}\" in LocalMachine/Root", resource.PresentableName)
+            Assert.Equal($"Certificate \"{tempFile.FileName}\" in LocalMachine/Root", resource.PresentableName)
         })
 }
 
@@ -217,7 +214,6 @@ let ``Works with custom store location``(): Task = task {
         do! withTempCertificate (fun cert tempFile -> task {
             let customStore = { Location = StoreLocation.CurrentUser; StoreName = StoreName.CertificateAuthority }
             let resource = trustedCertificate tempFile customStore
-            let fileName = Path.GetFileName(tempFile.Value)
-            Assert.Equal($"Certificate \"{fileName}\" in CurrentUser/CertificateAuthority", resource.PresentableName)
+            Assert.Equal($"Certificate \"{tempFile.FileName}\" in CurrentUser/CertificateAuthority", resource.PresentableName)
         })
 }

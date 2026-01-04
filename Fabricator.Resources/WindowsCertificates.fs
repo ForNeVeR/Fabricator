@@ -104,8 +104,7 @@ let trustedCertificate (certificatePath: AbsolutePath) (storeLocation: Certifica
     
     { new IResource with
         member this.PresentableName =
-            let fileName = Path.GetFileName(certificatePath.Value)
-            $"Certificate \"{fileName}\" in {storeLocation.Location}/{storeLocation.StoreName}"
+            $"Certificate \"{certificatePath.FileName}\" in {storeLocation.Location}/{storeLocation.StoreName}"
         
         member this.AlreadyApplied() = async {
             let certificate = cert.Value
