@@ -6,16 +6,7 @@ module Fabricator.Resources.Chocolatey
 
 open System
 open Fabricator.Core
-open Medallion.Shell
-
-let private runCommand (exe: string) (args: obj[]): Async<CommandResult> = async {
-    let! command = Async.AwaitTask <| Command.Run(exe, args).Task
-
-    if not command.Success
-    then failwithf $"{exe} execution error {string command.ExitCode}: {command.StandardError}\n{command.StandardOutput}"
-
-    return command
-}
+open Fabricator.Resources.CommandUtil
 
 let private getInstalledPackageVersion name = async {
     let! command = runCommand "choco" [|"list"; name; "--exact"; "--limit-output"|]
