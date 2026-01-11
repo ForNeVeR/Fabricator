@@ -34,8 +34,8 @@ To start using Fabricator, you should:
 Quick script example:
 
 ```fsharp
-#r "nuget: FVNever.Fabricator.Console, 0.4.0"
-#r "nuget: FVNever.Fabricator.Resources, 0.4.0"
+#r "nuget: FVNever.Fabricator.Console, 0.5.0"
+#r "nuget: FVNever.Fabricator.Resources, 0.5.0"
 
 open System
 open System.IO

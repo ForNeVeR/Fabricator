@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-01-11
+### Added
+- A new resource, `DotNetTool.Install`, managing the installed [.NET tools](https://learn.microsoft.com/en-us/dotnet/core/tools/global-tools).
+
 ## [0.4.0] - 2026-01-04
 ### Added
 - [#82](https://github.com/ForNeVeR/Fabricator/issues/82): new `WindowsCertificates.trustedCertificate` resource to install X.509 certificates to Windows certificate stores.
@@ -50,4 +54,5 @@ The following resource types are supported:
 [0.2.0]: https://github.com/ForNeVeR/Fabricator/compare/v0.1.0...v0.2.0
 [0.3.0]: https://github.com/ForNeVeR/Fabricator/compare/v0.2.0...v0.3.0
 [0.4.0]: https://github.com/ForNeVeR/Fabricator/compare/v0.3.0...v0.4.0
-[Unreleased]: https://github.com/ForNeVeR/Fabricator/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ForNeVeR/Fabricator/compare/v0.4.0...v0.5.0
+[Unreleased]: https://github.com/ForNeVeR/Fabricator/compare/v0.5.0...HEAD

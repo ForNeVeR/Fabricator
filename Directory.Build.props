@@ -6,7 +6,7 @@ SPDX-License-Identifier: MIT
 
 <Project>
     <PropertyGroup Label="Packaging">
-        <Version>0.4.0</Version>
+        <Version>0.5.0</Version>
         <PackageId>FVNever.$(MSBuildProjectName)</PackageId>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <Copyright>2020-2026 Fabricator contributors &lt;https://github.com/ForNeVeR/Fabricator&gt;</Copyright>
