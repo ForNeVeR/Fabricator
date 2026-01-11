@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Friedrich von Never <friedrich@fornever.me>
+//
+// SPDX-License-Identifier: MIT
+
 namespace Fabricator.Resources
 
 open System.Text.Json.Nodes
