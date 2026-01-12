@@ -2,7 +2,7 @@ open System
 open System.IO
 
 let licenseHeader = """
-# SPDX-FileCopyrightText: 2020-2025 Friedrich von Never <friedrich@fornever.me>
+# SPDX-FileCopyrightText: 2020-2026 Friedrich von Never <friedrich@fornever.me>
 #
 # SPDX-License-Identifier: MIT
 
@@ -43,6 +43,7 @@ let workflows = [
         header licenseHeader
         name "Main"
         onPushTo "main"
+        onPushTo "renovate/**"
         onPullRequestTo "main"
 
         dotNetJob "verify-workflows" [
@@ -115,6 +116,7 @@ let workflows = [
         header licenseHeader
         name "Docs"
         onPushTo "main"
+        onPushTo "renovate/**"
         onWorkflowDispatch
 
         workflowPermission(PermissionKind.Actions, AccessKind.Read)
@@ -157,6 +159,7 @@ let workflows = [
         header licenseHeader
         name "Release"
         onPushTo "main"
+        onPushTo "renovate/**"
         onPushTags "v*"
         onPullRequestTo "main"
         onSchedule "0 0 * * 6"
