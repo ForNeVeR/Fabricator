@@ -116,7 +116,6 @@ let workflows = [
         header licenseHeader
         name "Docs"
         onPushTo "main"
-        onPushTo "renovate/**"
         onWorkflowDispatch
 
         workflowPermission(PermissionKind.Actions, AccessKind.Read)
