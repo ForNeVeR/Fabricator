@@ -8,7 +8,7 @@ let licenseHeader = """
 
 # This file is auto-generated.""".Trim()
 
-#r "nuget: Generaptor.Library, 1.9.1"
+#r "nuget: Generaptor.Library, 1.10.0"
 open Generaptor
 open Generaptor.GitHubActions
 open type Generaptor.GitHubActions.Commands
