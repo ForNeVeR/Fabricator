@@ -47,12 +47,12 @@ let workflows = [
         onPullRequestTo "main"
 
         dotNetJob "verify-workflows" [
-            runsOn "ubuntu-24.04"
+            runsOn "ubuntu-26.04"
             step(run = "dotnet fsi ./scripts/github-actions.fsx verify")
         ]
 
         job "encoding" [
-            runsOn "ubuntu-24.04"
+            runsOn "ubuntu-26.04"
             step(
                 name = "Check out the sources",
                 usesSpec = Auto "actions/checkout"
@@ -65,7 +65,7 @@ let workflows = [
         ]
 
         job "licenses" [
-            runsOn "ubuntu-24.04"
+            runsOn "ubuntu-26.04"
             step(
                 name = "Check out the sources",
                 usesSpec = Auto "actions/checkout"
@@ -81,7 +81,7 @@ let workflows = [
             strategy(matrix = [
                 "environment", [
                     "macos-26"
-                    "ubuntu-24.04"
+                    "ubuntu-26.04"
                     "windows-2025"
                 ]
             ], failFast = false)
@@ -96,7 +96,7 @@ let workflows = [
         ]
 
         dotNetJob "check-docs" [
-            runsOn "ubuntu-24.04"
+            runsOn "ubuntu-26.04"
             step(
                 name = "Restore dotnet tools",
                 run = "dotnet tool restore"
@@ -126,7 +126,7 @@ let workflows = [
 
         dotNetJob "docs" [
             environment(name = "github-pages", url = "${{ steps.deployment.outputs.page_url }}")
-            runsOn "ubuntu-24.04"
+            runsOn "ubuntu-26.04"
             step(
                 name = "Restore .NET tools",
                 run = "dotnet tool restore"
@@ -165,7 +165,7 @@ let workflows = [
         onWorkflowDispatch
         dotNetJob "nuget" [
             jobPermission(PermissionKind.Contents, AccessKind.Write)
-            runsOn "ubuntu-24.04"
+            runsOn "ubuntu-26.04"
             step(
                 id = "version",
                 name = "Get version",
