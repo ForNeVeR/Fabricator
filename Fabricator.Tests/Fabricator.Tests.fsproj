@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2020-2025 Friedrich von Never <friedrich@fornever.me>
+SPDX-FileCopyrightText: 2020-2026 Friedrich von Never <friedrich@fornever.me>
 
 SPDX-License-Identifier: MIT
 -->
@@ -12,7 +12,12 @@ SPDX-License-Identifier: MIT
     </PropertyGroup>
 
     <ItemGroup>
+        <Compile Include="FakeResource.fs" />
+        <Compile Include="Console\CommandsTests.fs" />
         <Compile Include="Console\EntryPointTests.fs" />
+        <Compile Include="Console\LoweringTests.fs" />
+        <Compile Include="Console\TaskExecutorTests.fs" />
+        <Compile Include="Core\ResourceTests.fs" />
         <Compile Include="Resources\FileTests.fs" />
         <Compile Include="Resources\HostsFileTests.fs" />
         <Compile Include="Resources\WindowsCertificatesTests.fs" />

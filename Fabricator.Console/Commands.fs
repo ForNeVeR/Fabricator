@@ -1,71 +1,80 @@
-// SPDX-FileCopyrightText: 2021-2025 Friedrich von Never <friedrich@fornever.me>
+// SPDX-FileCopyrightText: 2021-2026 Friedrich von Never <friedrich@fornever.me>
 //
 // SPDX-License-Identifier: MIT
 
 module internal Fabricator.Console.Commands
 
+open System.Collections.Generic
+open System.IO
+open System.Threading.Tasks
+open Fabricator.Console.Lowering
 open Fabricator.Core
 
-let private checkIfApplied(resource: IResource) = async {
-    try
-        let! result = resource.AlreadyApplied()
-        return Result.Ok result
-    with
-        | error -> return Result.Error error
-}
+type private SynchronizedOutput(output: TextWriter) =
+    let lockObj = obj()
+    member _.WriteLine(text: string) = lock lockObj (fun () -> output.WriteLine text)
 
-let private applyResource(resource: IResource) = async {
-    try
-        do! resource.Apply()
-        return Result.Ok(())
-    with
-        | error -> return Result.Error error
-}
+let private name(t: LoweredTask) = t.Resource.PresentableName
 
-let apply(resources: IResource seq): Async<bool> = async {
-    printfn "Applying changes to the current environment."
+let private reportCycle (output: TextWriter) (cycle: IResource list) =
+    let path = cycle |> Seq.map _.PresentableName |> String.concat " → "
+    output.WriteLine $"Dependency cycle detected: {path}."
 
-    let mutable success = true
-    for resource in resources do
-        if success then
+let private execute (output: SynchronizedOutput) (graph: LoweredGraph)
+                    : Task<IReadOnlyDictionary<LoweredTask, TaskOutcome>> =
+    let onStarted(t: LoweredTask) =
+        match t.Kind with
+        | Check -> ()
+        | Apply -> output.WriteLine $"{name t}: applying…"
 
-            printf $"{resource.PresentableName}: "
-            let! applied = checkIfApplied resource
-            match applied with
-            | Ok true -> printfn "already applied."
-            | Ok false ->
-                printf "applying… "
+    let report (t: LoweredTask) (inputs: IReadOnlyList<LoweredTask * TaskOutcome>) (outcome: TaskOutcome) =
+        match t.Kind, outcome with
+        | Check, CheckPassed -> output.WriteLine $"{name t}: already applied."
+        | Check, CheckFailed -> output.WriteLine $"{name t}: not applied."
+        | Apply, Applied -> output.WriteLine $"{name t}: applied."
+        | Apply, Blocked when inputs |> Seq.exists (fun (i, o) -> i.Kind = Check && o = CheckFailed) ->
+            // Only report the tasks blocked by dependencies, not by the resource's own check failure.
+            output.WriteLine $"{name t}: skipped because a dependency has failed."
+        | _, Errored e -> output.WriteLine $"{name t}: error:\n{e}"
+        | _ -> ()
 
-                let! result = applyResource resource
-                match result with
-                | Result.Ok _ ->
-                    printfn "applied."
-                | Result.Error e ->
-                    success <- false
-                    printfn $"error:\n{e}"
-            | Error e ->
-                success <- false
-                printfn $"error:\n{e}"
+    TaskExecutor.execute graph.Tasks (fun t inputs -> task {
+        let! outcome = Lowering.run graph onStarted t inputs
+        report t inputs outcome
+        return outcome
+    })
 
-    return success
+let private isError = function
+    | Errored _ -> true
+    | _ -> false
+
+/// Applies the resources and their required dependencies. Returns whether all the required actions were successful.
+let apply (output: TextWriter) (resources: IResource seq): Task<bool> = task {
+    output.WriteLine "Applying changes to the current environment."
+    match Lowering.lower CheckAndApply resources with
+    | Error cycle ->
+        reportCycle output cycle
+        return false
+    | Ok graph ->
+        let! results = execute (SynchronizedOutput output) graph
+        return results.Values |> Seq.forall (function Errored _ | Blocked -> false | _ -> true)
 }
 
 type CheckStatus = AllApplied | NotAllApplied | CheckError
-let check(resources: IResource seq): Async<CheckStatus> = async {
-    printfn "Applying changes to the current environment."
 
-    let mutable result = AllApplied
-    for resource in resources do
-        printf $"{resource.PresentableName}: "
-        let! applied = checkIfApplied resource
-        match applied with
-        | Ok true -> printfn "already applied."
-        | Ok false ->
-            printfn "not applied."
-            if result = AllApplied then result <- NotAllApplied
-        | Error e ->
-            result <- CheckError
-            printfn $"error:\n{e}"
-
-    return result
+/// Checks the resources and their required dependencies.
+let check (output: TextWriter) (resources: IResource seq): Task<CheckStatus> = task {
+    output.WriteLine "Checking the current environment."
+    match Lowering.lower CheckOnly resources with
+    | Error cycle ->
+        reportCycle output cycle
+        return CheckError
+    | Ok graph ->
+        let! results = execute (SynchronizedOutput output) graph
+        let rootFailed =
+            results |> Seq.exists (fun kv -> graph.Roots.Contains kv.Key.Resource && kv.Value = CheckFailed)
+        return
+            if results.Values |> Seq.exists isError then CheckError
+            elif rootFailed then NotAllApplied
+            else AllApplied
 }

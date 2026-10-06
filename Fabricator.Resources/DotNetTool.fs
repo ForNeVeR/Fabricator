@@ -13,6 +13,7 @@ open TruePath.SystemIo
 type DotNetTool =
     static member Install(name: string, version: string, installationPath: AbsolutePath): IResource = {
         new IResource with
+            member _.DependsOn = Resource.NoDependencies
             member _.PresentableName = $"{name} {version}"
             member this.AlreadyApplied() = async {
                 if not <| installationPath.ExistsDirectory() then return false else

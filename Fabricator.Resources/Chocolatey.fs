@@ -43,6 +43,7 @@ let private upgradePackage name version =
 /// </returns>
 let chocolateyPackage(name: string, version: string): IResource =
     { new IResource with
+        member _.DependsOn = Resource.NoDependencies
         member this.PresentableName = $"Package {name}"
 
         member this.AlreadyApplied() = async {

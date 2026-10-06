@@ -101,6 +101,7 @@ let trustedCertificate (certificatePath: AbsolutePath) (storeLocation: Certifica
     let cert = lazy (getCertificateFromFile certificatePath)
 
     { new IResource with
+        member _.DependsOn = Resource.NoDependencies
         member this.PresentableName =
             $"Certificate \"{certificatePath.FileName}\" in {storeLocation.Location}/{storeLocation.StoreName}"
 

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2025 Friedrich von Never <friedrich@fornever.me>
+// SPDX-FileCopyrightText: 2020-2026 Friedrich von Never <friedrich@fornever.me>
 //
 // SPDX-License-Identifier: MIT
 
@@ -8,6 +8,7 @@ open System
 open System.IO
 
 open Fabricator.Console
+open Fabricator.Core
 open Fabricator.Resources.Archive
 open Fabricator.Resources.Downloads
 open Fabricator.Resources.Files
@@ -37,15 +38,17 @@ let shawlLogDir = readeckDataDir / "shawl"
 let shawlDownloadCache = cacheDir / fileName shawlUrl
 let shawlExecutable = AbsolutePath @"C:\Programs\shawl\shawl.exe"
 
-let installReadeck = [
-    downloadFile(readeckUrl, readeckHash, readeckExecutable)
-]
+let installReadeck = downloadFile(readeckUrl, readeckHash, readeckExecutable)
 
-let installShawl = [
-    downloadFile(shawlUrl, shawlHash, shawlDownloadCache)
-    unpackArchive(shawlDownloadCache, shawlHash, shawlExecutable.Parent.Value)
-    ensureFileExists shawlExecutable
-]
+let installShawl =
+    let download = downloadFile(shawlUrl, shawlHash, shawlDownloadCache)
+    let unpack =
+        unpackArchive(shawlDownloadCache, shawlHash, shawlExecutable.Parent.Value)
+        |> Resource.dependsOn [ download ]
+    ensureFileExists shawlExecutable |> Resource.dependsOn [ unpack ]
+
+let readeckDataDirectory = createDirectory readeckDataDir
+let shawlLogDirectory = createDirectory shawlLogDir |> Resource.dependsOn [ readeckDataDirectory ]
 
 let joinCommandLine(args: string seq): string =
     args
@@ -56,9 +59,7 @@ let joinCommandLine(args: string seq): string =
     )
     |> String.concat " "
 
-let installReadeckService = [
-    yield! installShawl
-    createDirectory shawlLogDir
+let private readeckService =
     createWindowsService(
         name = "readeck",
         account = @"NT AUTHORITY\Network Service",
@@ -73,16 +74,10 @@ let installReadeckService = [
             "serve"
         ]
     )
-]
-
-let private readeckService = [
-    yield! installReadeck
-    createDirectory readeckDataDir
-    yield! installReadeckService
-]
+    |> Resource.dependsOn [ installReadeck; installShawl; shawlLogDirectory ]
 
 let private resources = [
-    yield! readeckService
+    readeckService
 ]
 
 [<EntryPoint>]

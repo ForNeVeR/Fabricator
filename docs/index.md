@@ -3,7 +3,7 @@ _disableBreadcrumb: true
 ---
 
 <!--
-SPDX-FileCopyrightText: 2020-2025 Friedrich von Never <friedrich@fornever.me>
+SPDX-FileCopyrightText: 2020-2026 Friedrich von Never <friedrich@fornever.me>
 
 SPDX-License-Identifier: MIT
 -->
@@ -21,7 +21,9 @@ Every entity controlled by Fabricator is a _resource_. A _resource_ knows a targ
 
 An example of a resource is a file, or a service.
 
-Full system state, from Fabricator's point of view, corresponds to an ordered set of resources. When executing the `apply` command, Fabricator will check each resource's state and apply the resource if it isn't applied yet.
+Full system state, from Fabricator's point of view, corresponds to a set of resources. A resource may depend on other resources: its dependencies have to be applied before the resource itself.
+
+When executing the `apply` command, Fabricator will check each resource's state and apply the resource if it isn't applied yet. In the latter case, its dependencies are processed the same way before applying the resource. Independent resources are checked and applied in parallel.
 
 Packages
 -------------

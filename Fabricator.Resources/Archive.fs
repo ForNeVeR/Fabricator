@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 Friedrich von Never <friedrich@fornever.me>
+// SPDX-FileCopyrightText: 2025-2026 Friedrich von Never <friedrich@fornever.me>
 //
 // SPDX-License-Identifier: MIT
 
@@ -20,6 +20,7 @@ let unpackArchive(
 ): IResource =
     let outputHashFile = destinationDirectory / "fabricator-hash.txt"
     { new IResource with
+        member _.DependsOn = Resource.NoDependencies
         member this.PresentableName = $"Unpack archive \"{archive}\" to \"{destinationDirectory.Value}\""
         member this.AlreadyApplied() = async {
             if not(outputHashFile.Exists()) then return false

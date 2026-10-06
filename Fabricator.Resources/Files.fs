@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2025 Friedrich von Never <friedrich@fornever.me>
+// SPDX-FileCopyrightText: 2020-2026 Friedrich von Never <friedrich@fornever.me>
 //
 // SPDX-License-Identifier: MIT
 
@@ -48,6 +48,7 @@ let private arraysEqual (a: 'a[]) (b: 'a[]) =
 
 type FileResource(source: FileSource, targetAbsolutePath: string) =
     interface IResource with
+        member _.DependsOn = Resource.NoDependencies
         member _.PresentableName = resourceName source
         member _.AlreadyApplied() = async {
             if not(File.Exists targetAbsolutePath) then return false else
@@ -63,6 +64,7 @@ type FileResource(source: FileSource, targetAbsolutePath: string) =
 
 let createDirectory(path: AbsolutePath): IResource =
     { new IResource with
+        member _.DependsOn = Resource.NoDependencies
         member this.PresentableName = $"Directory \"{path.Value}\""
         member this.AlreadyApplied() = async {
             return path.ExistsDirectory()
@@ -74,6 +76,7 @@ let createDirectory(path: AbsolutePath): IResource =
 
 let ensureFileExists(path: AbsolutePath): IResource =
     { new IResource with
+        member _.DependsOn = Resource.NoDependencies
         member this.PresentableName = $"File \"{path.Value}\""
         member this.AlreadyApplied() = async {
             return false

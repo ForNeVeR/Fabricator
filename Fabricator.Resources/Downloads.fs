@@ -20,6 +20,7 @@ let private calcHash(path: AbsolutePath) = async {
 
 type private DownloadResource(uri: Uri, expectedHash: Sha256Hash, downloadPath: AbsolutePath) =
     interface IResource with
+        member _.DependsOn = Resource.NoDependencies
         member _.PresentableName: string = $"Download file from {uri} to {downloadPath}"
         member _.AlreadyApplied(): Async<bool> = async {
             let! downloadedHash = calcHash downloadPath

@@ -40,6 +40,7 @@ Quick script example:
 open System
 open System.IO
 open Fabricator.Console
+open Fabricator.Core
 open Fabricator.Resources.Archive
 open Fabricator.Resources.Downloads
 open Fabricator.Resources.Files
@@ -55,20 +56,22 @@ let shawlUrl = Uri $"https://github.com/mtkennerly/shawl/releases/download/v{sha
 let shawlDownloadCache = cacheDir / Path.GetFileName shawlUrl.LocalPath
 let shawlExecutable = AbsolutePath @"C:\Programs\shawl\shawl.exe"
 
-let installShawl = [
-    downloadFile(shawlUrl, shawlHash, shawlDownloadCache)
+let downloadShawl = downloadFile(shawlUrl, shawlHash, shawlDownloadCache)
+let unpackShawl =
     unpackArchive(shawlDownloadCache, shawlHash, shawlExecutable.Parent.Value)
-    ensureFileExists shawlExecutable
-]
+    |> Resource.dependsOn [ downloadShawl ]
+let installShawl = ensureFileExists shawlExecutable |> Resource.dependsOn [ unpackShawl ]
 
 let resources = [
-    yield! installShawl
+    installShawl
 ]
 
 exit <| EntryPoint.main fsi.CommandLineArgs resources
 ```
 
 This script will make sure there's an executable `C:\Programs\shawl\shawl.exe` downloaded from the specified URL. This executable might then be used for other resources' setup, e.g., for the [Windows service resource][docs.windows-service].
+
+Resources passed to `EntryPoint.main` are processed in parallel, and their order doesn't matter. If a resource requires another one to be applied first, declare that via `IResource.DependsOn` (e.g., using `Resource.dependsOn` as in the example above). A resource's dependencies are only checked (and applied, if required) when the resource itself is not applied yet.
 
 Prerequisites
 -------------

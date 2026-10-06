@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 Friedrich von Never <friedrich@fornever.me>
+// SPDX-FileCopyrightText: 2025-2026 Friedrich von Never <friedrich@fornever.me>
 //
 // SPDX-License-Identifier: MIT
 
@@ -73,6 +73,7 @@ type HostsFile =
             | None -> false
 
         { new IResource with
+            member _.DependsOn = Resource.NoDependencies
             member this.PresentableName = $"Host file entry \"{host}\""
 
             member this.AlreadyApplied() = async {
