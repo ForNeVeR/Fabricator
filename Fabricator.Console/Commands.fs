@@ -16,7 +16,7 @@ type private SynchronizedOutput(output: TextWriter) =
 
 let private name(t: LoweredTask) = t.Resource.PresentableName
 
-let private reportCycle (output: TextWriter) (cycle: IResource list) =
+let private reportCycle (output: TextWriter) (cycle: IResource seq) =
     let path = cycle |> Seq.map _.PresentableName |> String.concat " → "
     output.WriteLine $"Dependency cycle detected: {path}."
 

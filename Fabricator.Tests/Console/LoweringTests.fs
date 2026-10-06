@@ -40,9 +40,9 @@ let private assertCycle (expected: FakeResource list) (roots: FakeResource list)
     match lower CheckAndApply (roots |> Seq.cast<IResource>) with
     | Ok _ -> Assert.Fail "Cycle expected."
     | Error cycle ->
-        Assert.Equal<string list>(
-            expected |> List.map (fun r -> (r :> IResource).PresentableName),
-            cycle |> List.map _.PresentableName
+        Assert.Equal<string seq>(
+            expected |> Seq.map (fun r -> (r :> IResource).PresentableName),
+            cycle |> Seq.map _.PresentableName
         )
 
 [<Fact>]

@@ -55,8 +55,7 @@ type IResource =
     /// reports an error in case a cycle is detected.
     /// </para>
     /// <para>
-    /// The set might be changed while the resources are prepared, but should not be changed after the resources have
-    /// been passed to Fabricator for execution.
+    /// The set should not be changed after the resources have been passed to Fabricator for execution.
     /// </para>
     /// <para>
     /// Use <see cref="P:Fabricator.Core.Resource.NoDependencies"/> for resources without dependencies, and

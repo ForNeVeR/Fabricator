@@ -5,7 +5,6 @@
 /// Parallel execution of a dependency graph of tasks, based on Kahn's algorithm.
 module internal Fabricator.Console.TaskExecutor
 
-open System
 open System.Collections.Concurrent
 open System.Collections.Generic
 open System.Threading.Tasks
@@ -72,8 +71,7 @@ let execute
     verifyAcyclic graph dependents
 
     let results = ConcurrentDictionary<'Key, 'Result>()
-    let resultSnapshot() = Dictionary results :> IReadOnlyDictionary<_, _>
-    if graph.Count = 0 then Task.FromResult(resultSnapshot()) else
+    if graph.Count = 0 then Task.FromResult results else
 
     // Number of unfinished prerequisites for each task:
     let inDegree = Dictionary<'Key, int>()
@@ -87,7 +85,7 @@ let execute
     )
 
     let rec start(key: 'Key): unit =
-        Task.Run(Func<Task>(fun () -> processTask key)) |> ignore
+        Task.Run(fun () -> processTask key) |> ignore
 
     and processTask(key: 'Key): Task = task {
         try
@@ -107,7 +105,7 @@ let execute
                         readyTasks.Add dependent
 
                 if completedCount = graph.Count then
-                    tcs.TrySetResult(resultSnapshot()) |> ignore
+                    tcs.TrySetResult results |> ignore
             )
 
             if not tcs.Task.IsCompleted then

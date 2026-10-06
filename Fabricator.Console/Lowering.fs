@@ -55,24 +55,30 @@ let private collectAll(roots: IResource seq): HashSet<IResource> =
     visited
 
 /// <summary>Finds a dependency cycle in the resource graph reachable from <paramref name="roots"/>.</summary>
+/// <param name="roots">The roots of the resource graph.</param>
 /// <returns>
 /// The resources forming the cycle, with the first resource repeated in the end (e.g. <c>[A; B; A]</c>); or
 /// <c>None</c> if there are no cycles.
 /// </returns>
-let findCycle(roots: IResource seq): IResource list option =
+let findCycle(roots: IResource seq): IResource[] option =
     let finished = HashSet<IResource>()
     let onPath = HashSet<IResource>()
     let path = Stack<IResource>()
 
-    let rec visit(resource: IResource): IResource list option =
+    let rec visit(resource: IResource): IResource[] option =
         if finished.Contains resource then None
         elif onPath.Contains resource then
             let cycleTail =
                 path
                 |> Seq.takeWhile (fun r -> r <> resource) // Stack enumerates from the top
                 |> Seq.rev
-                |> Seq.toList
-            Some(resource :: cycleTail @ [resource])
+            let cycle = seq {
+                yield resource
+                yield! cycleTail
+                yield resource
+            }
+
+            Some(cycle |> Seq.toArray)
         else
             onPath.Add resource |> ignore
             path.Push resource
@@ -125,6 +131,8 @@ let private buildGraph (mode: ExecutionMode) (roots: IResource[]): TaskExecutor.
 /// <summary>
 /// Converts the resource graph reachable from <paramref name="roots"/> to a graph of lowered tasks.
 /// </summary>
+/// <param name="mode">The execution mode.</param>
+/// <param name="roots">The roots of the resource graph.</param>
 /// <remarks>
 /// <para>For each resource (including the transitive dependencies of the roots), a check task is created. Checks are
 /// independent of each other, so the check tasks have no prerequisites.</para>
@@ -134,7 +142,7 @@ let private buildGraph (mode: ExecutionMode) (roots: IResource[]): TaskExecutor.
 /// way, a resource is never changed while a resource depending on it is still being checked.</para>
 /// </remarks>
 /// <returns>The lowered graph, or an error containing a dependency cycle in the resource graph.</returns>
-let lower (mode: ExecutionMode) (roots: IResource seq): Result<TaskExecutor.TaskGraph<LoweredTask>, IResource list> =
+let lower (mode: ExecutionMode) (roots: IResource seq): Result<TaskExecutor.TaskGraph<LoweredTask>, IResource[]> =
     let roots = Seq.toArray roots
     match findCycle roots with
     | Some cycle -> Error cycle
