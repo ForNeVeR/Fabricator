@@ -4,6 +4,7 @@
 
 module Fabricator.Tests.Console.LoweringTests
 
+open Fabricator.Console
 open Fabricator.Console.Lowering
 open Fabricator.Core
 open Fabricator.Tests.FakeResource
@@ -18,19 +19,22 @@ let private lowerOk mode (roots: FakeResource list) =
     | Ok graph -> graph
     | Error cycle -> failwithf $"Unexpected cycle: {cycle}"
 
-let private assertTasks (expected: LoweredTask list) (graph: LoweredGraph) =
+let private assertTasks (expected: LoweredTask list) (graph: TaskExecutor.TaskGraph<LoweredTask>) =
     Assert.Equal<Set<string>>(
         expected |> Seq.map string |> Set.ofSeq,
-        graph.Tasks.Keys |> Seq.map string |> Set.ofSeq
+        graph.Keys |> Seq.map string |> Set.ofSeq
     )
-    Assert.Equal(expected.Length, graph.Tasks.Count)
+    Assert.Equal(expected.Length, graph.Count)
 
-let private assertPrerequisites (task: LoweredTask) (expected: LoweredTask list) (graph: LoweredGraph) =
+let private assertPrerequisites
+    (task: LoweredTask)
+    (expected: LoweredTask list)
+    (graph: TaskExecutor.TaskGraph<LoweredTask>) =
     Assert.Equal<Set<string>>(
         expected |> Seq.map string |> Set.ofSeq,
-        graph.Tasks[task] |> Seq.map string |> Set.ofSeq
+        graph[task] |> Seq.map string |> Set.ofSeq
     )
-    Assert.Equal(expected.Length, graph.Tasks[task].Count)
+    Assert.Equal(expected.Length, graph[task].Count)
 
 let private assertCycle (expected: FakeResource list) (roots: FakeResource list) =
     match lower CheckAndApply (roots |> Seq.cast<IResource>) with
@@ -47,10 +51,9 @@ let ``Check-only mode produces a check task for a single root``(): unit =
     let graph = lowerOk CheckOnly [ r ]
     assertTasks [ check r ] graph
     assertPrerequisites (check r) [] graph
-    Assert.True(graph.Roots.Contains r)
 
 [<Fact>]
-let ``Check-only mode has no apply tasks and checks dependencies after dependents``(): unit =
+let ``Check-only mode has independent check tasks for all reachable resources``(): unit =
     let r, d, e = resource "R", resource "D", resource "E"
     r.DependOn d
     d.DependOn e
@@ -59,9 +62,8 @@ let ``Check-only mode has no apply tasks and checks dependencies after dependent
 
     assertTasks [ check r; check d; check e ] graph
     assertPrerequisites (check r) [] graph
-    assertPrerequisites (check d) [ check r ] graph
-    assertPrerequisites (check e) [ check d ] graph
-    Assert.Equal(1, graph.Roots.Count)
+    assertPrerequisites (check d) [] graph
+    assertPrerequisites (check e) [] graph
 
 [<Fact>]
 let ``Apply mode applies dependencies before dependents``(): unit =
@@ -73,14 +75,14 @@ let ``Apply mode applies dependencies before dependents``(): unit =
 
     assertTasks [ check r; check d; check e; apply r; apply d; apply e ] graph
     assertPrerequisites (check r) [] graph
-    assertPrerequisites (check d) [ check r ] graph
-    assertPrerequisites (check e) [ check d ] graph
+    assertPrerequisites (check d) [] graph
+    assertPrerequisites (check e) [] graph
     assertPrerequisites (apply r) [ check r; apply d ] graph
-    assertPrerequisites (apply d) [ check d; apply e ] graph
-    assertPrerequisites (apply e) [ check e ] graph
+    assertPrerequisites (apply d) [ check d; apply e; check r ] graph
+    assertPrerequisites (apply e) [ check e; check d; check r ] graph
 
 [<Fact>]
-let ``Shared dependency is lowered once and checked after all its dependents``(): unit =
+let ``Shared dependency is lowered once and applied after all its dependents are checked``(): unit =
     let r1, r2, d = resource "R1", resource "R2", resource "D"
     r1.DependOn d
     r2.DependOn d
@@ -88,20 +90,21 @@ let ``Shared dependency is lowered once and checked after all its dependents``()
     let graph = lowerOk CheckAndApply [ r1; r2 ]
 
     assertTasks [ check r1; check r2; check d; apply r1; apply r2; apply d ] graph
-    assertPrerequisites (check d) [ check r1; check r2 ] graph
+    assertPrerequisites (check d) [] graph
+    assertPrerequisites (apply d) [ check d; check r1; check r2 ] graph
     assertPrerequisites (apply r1) [ check r1; apply d ] graph
     assertPrerequisites (apply r2) [ check r2; apply d ] graph
 
 [<Fact>]
-let ``Root check has no prerequisites even if the root is a dependency of another root``(): unit =
+let ``Root that is also a dependency of another root is lowered once``(): unit =
     let r, d = resource "R", resource "D"
     r.DependOn d
 
     let graph = lowerOk CheckAndApply [ r; d ]
 
-    assertPrerequisites (check d) [] graph
+    assertTasks [ check r; check d; apply r; apply d ] graph
     assertPrerequisites (apply r) [ check r; apply d ] graph
-    Assert.Equal(2, graph.Roots.Count)
+    assertPrerequisites (apply d) [ check d; check r ] graph
 
 [<Fact>]
 let ``Resources not reachable from roots are not lowered``(): unit =
@@ -116,8 +119,7 @@ let ``Resources not reachable from roots are not lowered``(): unit =
 [<Fact>]
 let ``No roots produce an empty graph``(): unit =
     let graph = lowerOk CheckAndApply []
-    Assert.Empty graph.Tasks
-    Assert.Empty graph.Roots
+    Assert.Empty graph
 
 type private EqualResource =
     { Name: string }
@@ -132,9 +134,7 @@ let ``Equal resources are lowered as one resource``(): unit =
     let roots: IResource list = [ { Name = "R" }; { Name = "R" } ]
     match lower CheckAndApply roots with
     | Error _ -> Assert.Fail "Unexpected cycle."
-    | Ok graph ->
-        Assert.Equal(2, graph.Tasks.Count)
-        Assert.Equal(1, graph.Roots.Count)
+    | Ok graph -> Assert.Equal(2, graph.Count)
 
 [<Fact>]
 let ``Self-dependency is reported as a cycle``(): unit =
@@ -165,5 +165,6 @@ let ``Diamond is not a cycle``(): unit =
     a.DependOn(b, c)
     b.DependOn d
     c.DependOn d
-    let graph = lowerOk CheckOnly [ a ]
-    assertPrerequisites (check d) [ check b; check c ] graph
+    let graph = lowerOk CheckAndApply [ a ]
+    assertPrerequisites (apply d) [ check d; check b; check c; check a ] graph
+    assertPrerequisites (apply a) [ check a; apply b; apply c ] graph

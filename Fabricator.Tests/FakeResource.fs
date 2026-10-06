@@ -22,6 +22,7 @@ type FakeResource(name: string, log: EventLog) =
     member val IsApplied = false with get, set
     member val CheckError: exn option = None with get, set
     member val ApplyError: exn option = None with get, set
+    member val OnCheck: unit -> Async<unit> = (fun () -> async.Return()) with get, set
     member val OnApply: unit -> Async<unit> = (fun () -> async.Return()) with get, set
 
     member this.DependOn([<System.ParamArray>] resources: IResource[]): unit =
@@ -32,6 +33,7 @@ type FakeResource(name: string, log: EventLog) =
         member _.PresentableName = name
         member this.AlreadyApplied() = async {
             log.Add $"check {name}"
+            do! this.OnCheck()
             match this.CheckError with
             | Some e -> return raise e
             | None -> return this.IsApplied

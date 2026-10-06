@@ -14,9 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 - **(Breaking change)** `IResource` has a new member, `DependsOn: IReadOnlySet<IResource>`, declaring the resources this one depends on. All `IResource` implementations have to provide it (use `Resource.NoDependencies` for resources without dependencies).
 - **(Breaking change)** Resources are now checked and applied in parallel. The order of the resources passed to `EntryPoint.main` no longer defines the order of their processing; use `DependsOn` to declare which resources have to be applied before others.
-- **(Breaking change)** The resources passed to `EntryPoint.main` are now considered the _root_ resources: their dependencies don't have to be passed explicitly and are processed only when required:
-  - `check` checks the dependencies of a resource only if the resource itself is not applied;
-  - `apply` checks the dependencies of a resource only if the resource itself is not applied, applies the dependencies that are not applied yet, and then applies the resource.
+- **(Breaking change)** The resources passed to `EntryPoint.main` are now considered the _root_ resources: their dependencies don't have to be passed explicitly. All the dependencies are always checked; `apply` applies the ones that are not applied yet before the resources depending on them. A resource is not applied until all the resources depending on it have been checked.
+- **(Breaking change)** `check` now reports that not all resources are applied (exit code 3) if any of the dependencies is not applied, even if the root resources are.
 - **(Breaking change)** If a resource fails to be checked or applied during `apply`, the resources depending on it are skipped, while independent resources continue to be processed (previously, the processing stopped on the first failure).
 - The `check` command now reports "Checking the current environment." instead of "Applying changes to the current environment." in the beginning.
 

@@ -35,8 +35,8 @@ type IResource =
     /// </summary>
     /// <remarks>
     /// Only called after <see cref="M:Fabricator.Core.IResource.AlreadyApplied"/> returned <c>false</c>, and after
-    /// all the dependencies from <see cref="P:Fabricator.Core.IResource.DependsOn"/> that required it have been
-    /// successfully applied. May be called concurrently with checks and applications of other resources that are not
+    /// all the dependencies from <see cref="P:Fabricator.Core.IResource.DependsOn"/> are applied (the ones not applied
+    /// yet are applied first). May be called concurrently with checks and applications of other resources that are not
     /// connected to this one via dependencies.
     /// </remarks>
     abstract member Apply: unit -> Async<unit>
@@ -47,10 +47,8 @@ type IResource =
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The dependencies are only processed when this resource is not already applied, i.e., when
-    /// <see cref="M:Fabricator.Core.IResource.AlreadyApplied"/> returned <c>false</c>. In that case, while checking,
-    /// all the dependencies are checked as well (recursively following the same rule); while applying, the
-    /// dependencies that are not already applied get applied before this resource.
+    /// All the dependencies are always checked together with this resource, independently of each other. While
+    /// applying, the dependencies that are not applied yet get applied before this resource.
     /// </para>
     /// <para>
     /// The dependency graph should not contain cycles; Fabricator verifies this before starting the execution and

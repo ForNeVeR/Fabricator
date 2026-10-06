@@ -23,7 +23,7 @@ An example of a resource is a file, or a service.
 
 Full system state, from Fabricator's point of view, corresponds to a set of resources. A resource may depend on other resources: its dependencies have to be applied before the resource itself.
 
-When executing the `apply` command, Fabricator will check each resource's state and apply the resource if it isn't applied yet. In the latter case, its dependencies are processed the same way before applying the resource. Independent resources are checked and applied in parallel.
+When executing the `apply` command, Fabricator will check each resource's state (including the dependencies) and apply the resource if it isn't applied yet, after its dependencies. Checks are performed in parallel, and independent resources are applied in parallel.
 
 Packages
 -------------

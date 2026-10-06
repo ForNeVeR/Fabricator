@@ -32,8 +32,39 @@ let private assertEvents (expected: string list) (log: EventLog) =
 let private assertBefore (first: string) (second: string) (log: EventLog) =
     Assert.True(log.IndexOf first < log.IndexOf second, $"\"{first}\" should happen before \"{second}\": {log.Events}")
 
+/// Makes all the resources wait in the passed hook until all of them have entered it; this only completes if they
+/// run concurrently.
+let private requireConcurrency (setHook: FakeResource -> (unit -> Async<unit>) -> unit) (resources: FakeResource list) =
+    let started = ref 0
+    let allStarted = TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
+    for resource in resources do
+        setHook resource (fun () -> async {
+            if Interlocked.Increment &started.contents = resources.Length then allStarted.SetResult()
+            do! Async.AwaitTask(allStarted.Task.WaitAsync(TimeSpan.FromSeconds 10.0))
+        })
+    started
+
 [<Fact>]
-let ``Check of an applied root does not check its dependencies``(): Task = task {
+let ``Check of an applied root checks its dependencies``(): Task = task {
+    let log = EventLog()
+    let r, d, e = FakeResource("R", log), FakeResource("D", log), FakeResource("E", log)
+    r.DependOn d
+    d.DependOn e
+    r.IsApplied <- true
+    d.IsApplied <- true
+    e.IsApplied <- true
+
+    let! status, output = runCheck [ r ]
+
+    Assert.Equal(AllApplied, status)
+    assertEvents [ "check R"; "check D"; "check E" ] log
+    Assert.Contains("R: already applied.", output)
+    Assert.Contains("D: already applied.", output)
+    Assert.Contains("E: already applied.", output)
+}
+
+[<Fact>]
+let ``Check reports a non-applied dependency of an applied root``(): Task = task {
     let log = EventLog()
     let r, d = FakeResource("R", log), FakeResource("D", log)
     r.DependOn d
@@ -41,13 +72,14 @@ let ``Check of an applied root does not check its dependencies``(): Task = task 
 
     let! status, output = runCheck [ r ]
 
-    Assert.Equal(AllApplied, status)
-    assertEvents [ "check R" ] log
+    Assert.Equal(NotAllApplied, status)
+    assertEvents [ "check R"; "check D" ] log
     Assert.Contains("R: already applied.", output)
+    Assert.Contains("D: not applied.", output)
 }
 
 [<Fact>]
-let ``Check of a non-applied root checks its dependencies recursively``(): Task = task {
+let ``Check of a non-applied root checks all its dependencies``(): Task = task {
     let log = EventLog()
     let r, d, e, f = FakeResource("R", log), FakeResource("D", log), FakeResource("E", log), FakeResource("F", log)
     r.DependOn(d, e)
@@ -58,46 +90,26 @@ let ``Check of a non-applied root checks its dependencies recursively``(): Task 
 
     Assert.Equal(NotAllApplied, status)
     assertEvents [ "check R"; "check D"; "check E"; "check F" ] log
-    assertBefore "check R" "check D" log
-    assertBefore "check R" "check E" log
-    assertBefore "check D" "check F" log
     Assert.Contains("R: not applied.", output)
     Assert.Contains("E: already applied.", output)
 }
 
 [<Fact>]
-let ``Check does not descend into dependencies of an applied dependency``(): Task = task {
+let ``Checks of dependent resources run in parallel``(): Task = task {
     let log = EventLog()
     let r, d, e = FakeResource("R", log), FakeResource("D", log), FakeResource("E", log)
     r.DependOn d
     d.DependOn e
-    d.IsApplied <- true
+    let started = requireConcurrency (fun r hook -> r.OnCheck <- hook) [ r; d; e ]
 
-    let! status, _ = runCheck [ r ]
+    let! status, output = runCheck [ r ]
 
-    Assert.Equal(NotAllApplied, status)
-    assertEvents [ "check R"; "check D" ] log
+    Assert.True((status = NotAllApplied), output)
+    Assert.Equal(3, started.Value)
 }
 
 [<Fact>]
-let ``Check status only accounts for root resources``(): Task = task {
-    let log = EventLog()
-    let r1, r2, d = FakeResource("R1", log), FakeResource("R2", log), FakeResource("D", log)
-    r1.DependOn d
-    r2.IsApplied <- true
-
-    let! status, _ = runCheck [ r1; r2 ]
-
-    Assert.Equal(NotAllApplied, status)
-    assertEvents [ "check R1"; "check R2"; "check D" ] log
-
-    r1.IsApplied <- true
-    let! status, _ = runCheck [ r1; r2 ]
-    Assert.Equal(AllApplied, status)
-}
-
-[<Fact>]
-let ``Check error in a root is reported and dependencies are not checked``(): Task = task {
+let ``Check error is reported and does not prevent other checks``(): Task = task {
     let log = EventLog()
     let r, d = FakeResource("R", log), FakeResource("D", log)
     r.DependOn d
@@ -106,9 +118,10 @@ let ``Check error in a root is reported and dependencies are not checked``(): Ta
     let! status, output = runCheck [ r ]
 
     Assert.Equal(CheckError, status)
-    assertEvents [ "check R" ] log
+    assertEvents [ "check R"; "check D" ] log
     Assert.Contains("R: error:", output)
     Assert.Contains("Check failure", output)
+    Assert.Contains("D: not applied.", output)
 }
 
 [<Fact>]
@@ -116,6 +129,7 @@ let ``Check error in a dependency is reported``(): Task = task {
     let log = EventLog()
     let r, d = FakeResource("R", log), FakeResource("D", log)
     r.DependOn d
+    r.IsApplied <- true
     d.CheckError <- Some(Exception "Check failure")
 
     let! status, _ = runCheck [ r ]
@@ -144,7 +158,23 @@ let ``Check reports a dependency cycle``(): Task = task {
 }
 
 [<Fact>]
-let ``Apply of an applied root does nothing else``(): Task = task {
+let ``Apply of fully applied resources only checks them``(): Task = task {
+    let log = EventLog()
+    let r, d = FakeResource("R", log), FakeResource("D", log)
+    r.DependOn d
+    r.IsApplied <- true
+    d.IsApplied <- true
+
+    let! success, output = runApply [ r ]
+
+    Assert.True success
+    assertEvents [ "check R"; "check D" ] log
+    Assert.Contains("R: already applied.", output)
+    Assert.Contains("D: already applied.", output)
+}
+
+[<Fact>]
+let ``Apply applies a non-applied dependency of an applied root``(): Task = task {
     let log = EventLog()
     let r, d = FakeResource("R", log), FakeResource("D", log)
     r.DependOn d
@@ -153,8 +183,8 @@ let ``Apply of an applied root does nothing else``(): Task = task {
     let! success, output = runApply [ r ]
 
     Assert.True success
-    assertEvents [ "check R" ] log
-    Assert.Contains("R: already applied.", output)
+    assertEvents [ "check R"; "check D"; "apply D" ] log
+    Assert.Contains("D: applied.", output)
 }
 
 [<Fact>]
@@ -168,8 +198,6 @@ let ``Apply applies dependencies before dependents``(): Task = task {
 
     Assert.True success
     assertEvents [ "check R"; "check D"; "check E"; "apply E"; "apply D"; "apply R" ] log
-    assertBefore "check R" "check D" log
-    assertBefore "check D" "check E" log
     assertBefore "apply E" "apply D" log
     assertBefore "apply D" "apply R" log
     Assert.Contains("R: applying…", output)
@@ -177,7 +205,7 @@ let ``Apply applies dependencies before dependents``(): Task = task {
 }
 
 [<Fact>]
-let ``Apply skips applied dependencies and does not check their dependencies``(): Task = task {
+let ``Apply skips applied dependencies but still applies their dependencies``(): Task = task {
     let log = EventLog()
     let r, d, e = FakeResource("R", log), FakeResource("D", log), FakeResource("E", log)
     r.DependOn d
@@ -187,7 +215,24 @@ let ``Apply skips applied dependencies and does not check their dependencies``()
     let! success, _ = runApply [ r ]
 
     Assert.True success
-    assertEvents [ "check R"; "check D"; "apply R" ] log
+    assertEvents [ "check R"; "check D"; "check E"; "apply E"; "apply R" ] log
+    assertBefore "apply E" "apply R" log
+}
+
+[<Fact>]
+let ``Dependency is applied only after its dependents are checked``(): Task = task {
+    let log = EventLog()
+    let r, d = FakeResource("R", log), FakeResource("D", log)
+    r.DependOn d
+    r.OnCheck <- fun () -> async {
+        do! Async.Sleep 100
+        log.Add "check R finished"
+    }
+
+    let! success, _ = runApply [ r ]
+
+    Assert.True success
+    assertBefore "check R finished" "apply D" log
 }
 
 [<Fact>]
@@ -250,15 +295,16 @@ let ``Dependency check error blocks the dependent application``(): Task = task {
 }
 
 [<Fact>]
-let ``Root check error fails the application``(): Task = task {
+let ``Root check error fails the application but dependencies are still applied``(): Task = task {
     let log = EventLog()
-    let r = FakeResource("R", log)
+    let r, d = FakeResource("R", log), FakeResource("D", log)
+    r.DependOn d
     r.CheckError <- Some(Exception "Check failure")
 
     let! success, output = runApply [ r ]
 
     Assert.False success
-    assertEvents [ "check R" ] log
+    assertEvents [ "check R"; "check D"; "apply D" ] log
     Assert.DoesNotContain("skipped", output)
 }
 
@@ -277,16 +323,9 @@ let ``Apply reports a dependency cycle``(): Task = task {
 
 [<Fact>]
 let ``Independent resources are applied in parallel``(): Task = task {
-    // Each application waits until all three have started; this only completes if they run concurrently.
     let log = EventLog()
-    let started = ref 0
-    let allStarted = TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
     let resources = [ for name in [ "A"; "B"; "C" ] -> FakeResource(name, log) ]
-    for resource in resources do
-        resource.OnApply <- fun () -> async {
-            if Interlocked.Increment &started.contents = 3 then allStarted.SetResult()
-            do! Async.AwaitTask(allStarted.Task.WaitAsync(TimeSpan.FromSeconds 10.0))
-        }
+    let started = requireConcurrency (fun r hook -> r.OnApply <- hook) resources
 
     let! success, output = runApply resources
 

@@ -28,13 +28,6 @@ type LoweredTask =
     }
     override this.ToString() = $"{this.Kind} {this.Resource.PresentableName}"
 
-type LoweredGraph =
-    {
-        /// Root (desired) resources. Their checks are performed unconditionally.
-        Roots: IReadOnlySet<IResource>
-        /// Lowered tasks mapped to their prerequisites.
-        Tasks: TaskExecutor.TaskGraph<LoweredTask>
-    }
 
 type TaskOutcome =
     /// The resource check has returned true.
@@ -91,23 +84,31 @@ let findCycle(roots: IResource seq): IResource list option =
 
     roots |> Seq.tryPick visit
 
-let private buildGraph (mode: ExecutionMode) (roots: IResource[]): LoweredGraph =
-    let rootSet = HashSet roots
-    let allResources = collectAll roots
+/// Collects all the resources depending on the passed one, directly or transitively.
+let private collectDependents (dependents: Dictionary<IResource, ResizeArray<IResource>>) (resource: IResource) =
+    let visited = HashSet<IResource>()
+    let rec walk(r: IResource) =
+        for dependent in dependents[r] do
+            if visited.Add dependent then
+                walk dependent
+    walk resource
+    visited
+
+let private buildGraph (mode: ExecutionMode) (roots: IResource[]): TaskExecutor.TaskGraph<LoweredTask> =
     let check r = { Kind = Check; Resource = r }
     let apply r = { Kind = Apply; Resource = r }
 
-    let checkPrerequisites = Dictionary<IResource, ResizeArray<LoweredTask>>()
+    let allResources = collectAll roots
+    let dependents = Dictionary<IResource, ResizeArray<IResource>>()
     for resource in allResources do
-        checkPrerequisites[resource] <- ResizeArray()
-    for dependent in allResources do
-        for dependency in dependent.DependsOn do
-            if not(rootSet.Contains dependency) then
-                checkPrerequisites[dependency].Add(check dependent)
+        dependents[resource] <- ResizeArray()
+    for resource in allResources do
+        for dependency in resource.DependsOn do
+            dependents[dependency].Add resource
 
     let tasks = Dictionary<LoweredTask, IReadOnlyList<LoweredTask>>()
     for resource in allResources do
-        tasks[check resource] <- checkPrerequisites[resource]
+        tasks[check resource] <- Array.empty
         match mode with
         | CheckOnly -> ()
         | CheckAndApply ->
@@ -115,26 +116,25 @@ let private buildGraph (mode: ExecutionMode) (roots: IResource[]): LoweredGraph 
                 check resource
                 for dependency in resource.DependsOn do
                     apply dependency
+                for dependent in collectDependents dependents resource do
+                    check dependent
             |]
 
-    {
-        Roots = rootSet
-        Tasks = tasks
-    }
+    tasks
 
 /// <summary>
 /// Converts the resource graph reachable from <paramref name="roots"/> to a graph of lowered tasks.
 /// </summary>
 /// <remarks>
-/// <para>For each resource, a check task is created. Its prerequisites are the check tasks of the resources depending
-/// on it (since a dependency is only checked if some resource depending on it is not applied). Root resources are
-/// always checked, so their check tasks have no prerequisites.</para>
+/// <para>For each resource (including the transitive dependencies of the roots), a check task is created. Checks are
+/// independent of each other, so the check tasks have no prerequisites.</para>
 /// <para>In <see cref="F:Fabricator.Console.Lowering.ExecutionMode.CheckAndApply"/> mode, for each resource an apply
-/// task is also created. Its prerequisites are the check task of the same resource and the apply tasks of all the
-/// resource's dependencies.</para>
+/// task is also created. Its prerequisites are the check task of the same resource, the apply tasks of all the
+/// resource's dependencies, and the check tasks of all the resources depending on it (directly or transitively): this
+/// way, a resource is never changed while a resource depending on it is still being checked.</para>
 /// </remarks>
 /// <returns>The lowered graph, or an error containing a dependency cycle in the resource graph.</returns>
-let lower (mode: ExecutionMode) (roots: IResource seq): Result<LoweredGraph, IResource list> =
+let lower (mode: ExecutionMode) (roots: IResource seq): Result<TaskExecutor.TaskGraph<LoweredTask>, IResource list> =
     let roots = Seq.toArray roots
     match findCycle roots with
     | Some cycle -> Error cycle
@@ -161,12 +161,15 @@ let private runApply(resource: IResource): Task<TaskOutcome> = task {
 }
 
 /// <summary>Executes a lowered task according to the results of its prerequisites.</summary>
-/// <param name="graph">The lowered graph the task belongs to.</param>
+/// <remarks>
+/// Check tasks always run. An apply task runs only if the resource's own check has returned false and none of the
+/// apply tasks of its dependencies have failed or have been blocked. Results of the checks of other resources (the
+/// ones depending on this resource) are ignored.
+/// </remarks>
 /// <param name="onStarted">Called before the actual resource action (check or apply) starts.</param>
 /// <param name="loweredTask">The task to execute.</param>
 /// <param name="inputs">The results of the task's prerequisites.</param>
 let run
-    (graph: LoweredGraph)
     (onStarted: LoweredTask -> unit)
     (loweredTask: LoweredTask)
     (inputs: IReadOnlyList<LoweredTask * TaskOutcome>)
@@ -174,14 +177,8 @@ let run
     let resource = loweredTask.Resource
     match loweredTask.Kind with
     | Check ->
-        let isRequired =
-            graph.Roots.Contains resource
-            || inputs |> Seq.exists (fun (_, outcome) -> outcome = CheckFailed)
-        if isRequired then
-            onStarted loweredTask
-            runCheck resource
-        elif inputs |> Seq.exists (snd >> isFailure) then Task.FromResult Blocked
-        else Task.FromResult NotRequired
+        onStarted loweredTask
+        runCheck resource
     | Apply ->
         let ownCheck =
             inputs
@@ -189,10 +186,12 @@ let run
             |> Option.defaultWith (fun () ->
                 raise <| InvalidOperationException $"Check result not found for task \"{loweredTask}\".")
         match ownCheck with
-        | CheckPassed | NotRequired -> Task.FromResult NotRequired
-        | Errored _ | Blocked -> Task.FromResult Blocked
-        | CheckFailed when inputs |> Seq.exists (snd >> isFailure) -> Task.FromResult Blocked
+        | CheckPassed -> Task.FromResult NotRequired
+        | Errored _ -> Task.FromResult Blocked
+        | CheckFailed when inputs |> Seq.exists (fun (t, outcome) -> t.Kind = Apply && isFailure outcome) ->
+            Task.FromResult Blocked
         | CheckFailed ->
             onStarted loweredTask
             runApply resource
-        | Applied -> raise <| InvalidOperationException $"Unexpected check outcome for task \"{loweredTask}\"."
+        | Applied | NotRequired | Blocked ->
+            raise <| InvalidOperationException $"Unexpected check outcome for task \"{loweredTask}\": {ownCheck}."

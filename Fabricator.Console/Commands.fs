@@ -20,7 +20,7 @@ let private reportCycle (output: TextWriter) (cycle: IResource list) =
     let path = cycle |> Seq.map _.PresentableName |> String.concat " → "
     output.WriteLine $"Dependency cycle detected: {path}."
 
-let private execute (output: SynchronizedOutput) (graph: LoweredGraph)
+let private execute (output: SynchronizedOutput) (graph: TaskExecutor.TaskGraph<LoweredTask>)
                     : Task<IReadOnlyDictionary<LoweredTask, TaskOutcome>> =
     let onStarted(t: LoweredTask) =
         match t.Kind with
@@ -32,14 +32,14 @@ let private execute (output: SynchronizedOutput) (graph: LoweredGraph)
         | Check, CheckPassed -> output.WriteLine $"{name t}: already applied."
         | Check, CheckFailed -> output.WriteLine $"{name t}: not applied."
         | Apply, Applied -> output.WriteLine $"{name t}: applied."
-        | Apply, Blocked when inputs |> Seq.exists (fun (i, o) -> i.Kind = Check && o = CheckFailed) ->
+        | Apply, Blocked when inputs |> Seq.contains ({ t with Kind = Check }, CheckFailed) ->
             // Only report the tasks blocked by dependencies, not by the resource's own check failure.
             output.WriteLine $"{name t}: skipped because a dependency has failed."
         | _, Errored e -> output.WriteLine $"{name t}: error:\n{e}"
         | _ -> ()
 
-    TaskExecutor.execute graph.Tasks (fun t inputs -> task {
-        let! outcome = Lowering.run graph onStarted t inputs
+    TaskExecutor.execute graph (fun t inputs -> task {
+        let! outcome = Lowering.run onStarted t inputs
         report t inputs outcome
         return outcome
     })
@@ -48,7 +48,8 @@ let private isError = function
     | Errored _ -> true
     | _ -> false
 
-/// Applies the resources and their required dependencies. Returns whether all the required actions were successful.
+/// Applies the resources and their dependencies that are not applied yet. Returns whether all the required actions
+/// were successful.
 let apply (output: TextWriter) (resources: IResource seq): Task<bool> = task {
     output.WriteLine "Applying changes to the current environment."
     match Lowering.lower CheckAndApply resources with
@@ -62,7 +63,7 @@ let apply (output: TextWriter) (resources: IResource seq): Task<bool> = task {
 
 type CheckStatus = AllApplied | NotAllApplied | CheckError
 
-/// Checks the resources and their required dependencies.
+/// Checks the resources and all their dependencies.
 let check (output: TextWriter) (resources: IResource seq): Task<CheckStatus> = task {
     output.WriteLine "Checking the current environment."
     match Lowering.lower CheckOnly resources with
@@ -71,10 +72,8 @@ let check (output: TextWriter) (resources: IResource seq): Task<CheckStatus> = t
         return CheckError
     | Ok graph ->
         let! results = execute (SynchronizedOutput output) graph
-        let rootFailed =
-            results |> Seq.exists (fun kv -> graph.Roots.Contains kv.Key.Resource && kv.Value = CheckFailed)
         return
             if results.Values |> Seq.exists isError then CheckError
-            elif rootFailed then NotAllApplied
+            elif results.Values |> Seq.contains CheckFailed then NotAllApplied
             else AllApplied
 }

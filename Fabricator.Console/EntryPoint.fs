@@ -21,8 +21,9 @@ let private printUsage() =
 
 /// <summary>Performs tasks on the passed resources according to the passed arguments.</summary>
 /// <remarks>
-/// The independent resources are processed in parallel. The dependencies of the passed resources (see
-/// <see cref="P:Fabricator.Core.IResource.DependsOn"/>) are processed only when required.
+/// The passed resources and all their dependencies (see <see cref="P:Fabricator.Core.IResource.DependsOn"/>) are
+/// processed. The checks are performed in parallel; the resources are applied in parallel, except that a resource is
+/// only applied after all its dependencies.
 /// </remarks>
 /// <param name="args">The command-line arguments.</param>
 /// <param name="resources">The root resources, i.e., the resources describing the desired environment state.</param>
