@@ -28,7 +28,7 @@ type HostsFile =
     /// </summary>
     /// <param name="hostsFilePath">The path to the hosts file.</param>
     static member ConcurrencyGroup(hostsFilePath: AbsolutePath): ConcurrencyGroup =
-        ConcurrencyGroup $"HostsFile:{hostsFilePath.Value}"
+        ConcurrencyGroup $"HostsFile:{hostsFilePath.Canonicalize().Value}"
 
     /// <summary>
     /// Creates a resource for managing a host file entry.

@@ -17,7 +17,7 @@ type DotNetTool =
     /// </summary>
     /// <param name="installationPath">The tool installation path.</param>
     static member ConcurrencyGroup(installationPath: AbsolutePath): ConcurrencyGroup =
-        ConcurrencyGroup $"DotNetTool:{installationPath.Value}"
+        ConcurrencyGroup $"DotNetTool:{installationPath.Canonicalize().Value}"
 
     static member Install(
         name: string,
