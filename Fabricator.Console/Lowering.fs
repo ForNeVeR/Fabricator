@@ -8,7 +8,7 @@ module internal Fabricator.Console.Lowering
 
 open System
 open System.Collections.Generic
-open System.Threading.Tasks
+open System.Threading
 open Fabricator.Core
 
 type ExecutionMode =
@@ -88,20 +88,26 @@ let private isFailure = function
     | Errored _ | Blocked -> true
     | CheckPassed | CheckFailed | Applied | NotRequired -> false
 
-let private runCheck(resource: Resource): Task<TaskOutcome> = task {
+/// Whether the exception should be reported as a resource failure, as opposed to the execution cancellation.
+let private isResourceError (ct: CancellationToken) (ex: exn) =
+    not (ex :? OperationCanceledException && ct.IsCancellationRequested)
+
+let private runCheck(resource: Resource): Async<TaskOutcome> = async {
+    let! ct = Async.CancellationToken
     try
-        let! applied = Async.StartAsTask(resource.AlreadyApplied())
+        let! applied = resource.AlreadyApplied()
         return if applied then CheckPassed else CheckFailed
     with
-    | ex -> return Errored ex
+    | ex when isResourceError ct ex -> return Errored ex
 }
 
-let private runApply(resource: Resource): Task<TaskOutcome> = task {
+let private runApply(resource: Resource): Async<TaskOutcome> = async {
+    let! ct = Async.CancellationToken
     try
-        do! Async.StartAsTask(resource.Apply())
+        do! resource.Apply()
         return Applied
     with
-    | ex -> return Errored ex
+    | ex when isResourceError ct ex -> return Errored ex
 }
 
 /// <summary>Executes a lowered task according to the results of its prerequisites.</summary>
@@ -116,10 +122,10 @@ let run
     (onStarted: LoweredTask -> unit)
     (loweredTask: LoweredTask)
     (inputs: IReadOnlyList<LoweredTask * TaskOutcome>)
-    : Task<TaskOutcome> =
+    : Async<TaskOutcome> =
     let resource = loweredTask.Resource
     match loweredTask.Kind with
-    | Check when inputs |> Seq.exists (snd >> isFailure) -> Task.FromResult Blocked
+    | Check when inputs |> Seq.exists (snd >> isFailure) -> async.Return Blocked
     | Check ->
         onStarted loweredTask
         runCheck resource
@@ -130,8 +136,8 @@ let run
             |> Option.defaultWith (fun () ->
                 raise <| InvalidOperationException $"Check result not found for task \"{loweredTask}\".")
         match ownCheck with
-        | CheckPassed -> Task.FromResult NotRequired
-        | Errored _ | Blocked -> Task.FromResult Blocked
+        | CheckPassed -> async.Return NotRequired
+        | Errored _ | Blocked -> async.Return Blocked
         | CheckFailed ->
             onStarted loweredTask
             runApply resource

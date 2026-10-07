@@ -16,13 +16,13 @@ open Xunit
 
 let private runCheck(roots: FakeResource list) = task {
     use output = new StringWriter()
-    let! status = Commands.check output (roots |> Seq.map _.Resource)
+    let! status = Commands.check output (roots |> Seq.map _.Resource) |> Async.StartAsTask
     return status, output.ToString()
 }
 
 let private runApply(roots: FakeResource list) = task {
     use output = new StringWriter()
-    let! success = Commands.apply output (roots |> Seq.map _.Resource)
+    let! success = Commands.apply output (roots |> Seq.map _.Resource) |> Async.StartAsTask
     return success, output.ToString()
 }
 
@@ -333,4 +333,26 @@ let ``Independent resources are applied in parallel``(): Task = task {
 
     Assert.True(success, output)
     Assert.Equal(3, started.Value)
+}
+
+[<Fact>]
+let ``Cancellation stops the application without starting dependents or reporting errors``(): Task = task {
+    let log = EventLog()
+    let applyStarted = TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
+    let d = FakeResource("D", log)
+    d.OnApply <- fun () -> async {
+        applyStarted.SetResult()
+        do! Async.Sleep(TimeSpan.FromSeconds 10.0)
+    }
+    let r = FakeResource("R", log, d)
+
+    use cts = new CancellationTokenSource()
+    use output = new StringWriter()
+    let execution = Async.StartAsTask(Commands.apply output [ r.Resource ], cancellationToken = cts.Token)
+    do! applyStarted.Task.WaitAsync(TimeSpan.FromSeconds 10.0)
+    cts.Cancel()
+
+    let! _ = Assert.ThrowsAnyAsync<OperationCanceledException>(fun () -> execution :> Task)
+    assertEvents [ "check D"; "apply D" ] log
+    Assert.DoesNotContain("error", output.ToString())
 }

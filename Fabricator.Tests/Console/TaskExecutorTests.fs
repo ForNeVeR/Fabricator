@@ -18,11 +18,15 @@ let private graph(edges: (string * string list) list): TaskExecutor.TaskGraph<st
         result[key] <- Seq.toArray prerequisites
     result
 
+let private execute tasks action = TaskExecutor.execute tasks action |> Async.StartAsTask
+
 let private sumInputs(inputs: IReadOnlyList<string * int>) = inputs |> Seq.sumBy snd
+
+let private timeout = TimeSpan.FromSeconds 10.0
 
 [<Fact>]
 let ``Single task with no prerequisites executes successfully``(): Task = task {
-    let! results = TaskExecutor.execute (graph [ "single", [] ]) (fun _ _ -> Task.FromResult 42)
+    let! results = execute (graph [ "single", [] ]) (fun _ _ -> async.Return 42)
     Assert.Equal(42, results["single"])
     Assert.Equal(1, results.Count)
 }
@@ -30,7 +34,7 @@ let ``Single task with no prerequisites executes successfully``(): Task = task {
 [<Fact>]
 let ``Empty graph completes immediately``(): Task = task {
     let called = ref false
-    let! results = TaskExecutor.execute (graph []) (fun _ _ -> called.Value <- true; Task.FromResult 0)
+    let! results = execute (graph []) (fun _ _ -> called.Value <- true; async.Return 0)
     Assert.Empty results
     Assert.False called.Value
 }
@@ -45,7 +49,7 @@ let ``Prerequisites execute before dependents``(): Task = task {
         "D", []
     ]
 
-    let! _ = TaskExecutor.execute tasks (fun key _ -> task {
+    let! _ = execute tasks (fun key _ -> async {
         executionOrder.Enqueue key
         return 0
     })
@@ -71,10 +75,10 @@ let ``Independent tasks run concurrently``(): Task = task {
         "D", []
     ]
 
-    let! results = TaskExecutor.execute tasks (fun key inputs -> task {
+    let! results = execute tasks (fun key inputs -> async {
         if key = "A" then return sumInputs inputs else
         if Interlocked.Increment &started.contents = 3 then allStarted.SetResult()
-        do! allStarted.Task.WaitAsync(TimeSpan.FromSeconds 10.0)
+        do! Async.AwaitTask(allStarted.Task.WaitAsync timeout)
         return 1
     })
 
@@ -96,7 +100,7 @@ let ``Diamond dependency pattern passes results and executes each task once``():
         "D", []
     ]
 
-    let! results = TaskExecutor.execute tasks (fun key inputs -> task {
+    let! results = execute tasks (fun key inputs -> async {
         executionCounts.AddOrUpdate(key, 1, fun _ v -> v + 1) |> ignore
         return
             match key with
@@ -124,7 +128,7 @@ let ``Task failure propagates exception and dependents are not executed``(): Tas
     ]
 
     let! ex = Assert.ThrowsAnyAsync<Exception>(fun () ->
-        TaskExecutor.execute tasks (fun key _ -> task {
+        execute tasks (fun key _ -> async {
             executed.Enqueue key
             if key = "failing" then failwith "Intentional failure"
             return 0
@@ -136,20 +140,83 @@ let ``Task failure propagates exception and dependents are not executed``(): Tas
 }
 
 [<Fact>]
-let ``Unknown prerequisite is rejected before execution``(): unit =
+let ``Task failure cancels the running tasks and waits for them to finish``(): Task = task {
+    let runningStarted = TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
+    let runningFinished = ref false
+    let tasks = graph [
+        "failing", []
+        "running", []
+    ]
+
+    let! ex = Assert.ThrowsAnyAsync<Exception>(fun () ->
+        execute tasks (fun key _ -> async {
+            match key with
+            | "failing" ->
+                do! Async.AwaitTask(runningStarted.Task.WaitAsync timeout)
+                return failwith "Intentional failure"
+            | _ ->
+                try
+                    runningStarted.SetResult()
+                    do! Async.Sleep timeout
+                    return 0
+                finally
+                    // Make sure the executor waits for this task even if it takes time to stop.
+                    Thread.Sleep 100
+                    runningFinished.Value <- true
+        }) :> Task
+    )
+
+    Assert.Contains("Intentional failure", ex.Message)
+    Assert.True(runningFinished.Value, "The running task should have finished before the execution completed.")
+}
+
+[<Fact>]
+let ``Cancellation reaches the running tasks``(): Task = task {
+    use cts = new CancellationTokenSource()
+    let runningStarted = TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
+    let observedCancellation = ref false
+    let tasks = graph [
+        "dependent", [ "running" ]
+        "running", []
+    ]
+    let executed = ConcurrentQueue<string>()
+
+    let execution =
+        Async.StartAsTask(
+            TaskExecutor.execute tasks (fun key _ -> async {
+                executed.Enqueue key
+                let! ct = Async.CancellationToken
+                use _ = ct.Register(fun () -> observedCancellation.Value <- true)
+                runningStarted.SetResult()
+                do! Async.Sleep timeout
+                return 0
+            }),
+            cancellationToken = cts.Token
+        )
+    do! runningStarted.Task.WaitAsync timeout
+    cts.Cancel()
+
+    let! _ = Assert.ThrowsAnyAsync<OperationCanceledException>(fun () -> execution :> Task)
+    Assert.True(observedCancellation.Value, "The running task should observe the cancellation.")
+    Assert.Equal<string list>([ "running" ], Seq.toList executed)
+}
+
+[<Fact>]
+let ``Unknown prerequisite is rejected before execution``(): Task = task {
     let called = ref false
     let tasks = graph [
         "A", [ "missing" ]
         "B", []
     ]
-    let ex = Assert.Throws<ArgumentException>(fun () ->
-        TaskExecutor.execute tasks (fun _ _ -> called.Value <- true; Task.FromResult 0) |> ignore
+    let! ex = Assert.ThrowsAsync<ArgumentException>(fun () ->
+        execute tasks (fun _ _ -> called.Value <- true; async.Return 0) :> Task
     )
     Assert.Contains("missing", ex.Message)
     Assert.False called.Value
+}
 
 [<Fact>]
-let ``Cycle is rejected before execution``(): unit =
+let ``Cycle is rejected before execution``(): Task = task {
     let called = ref false
     let tasks = graph [
         "A", [ "B" ]
@@ -157,8 +224,9 @@ let ``Cycle is rejected before execution``(): unit =
         "C", [ "A" ]
         "independent", []
     ]
-    let ex = Assert.Throws<ArgumentException>(fun () ->
-        TaskExecutor.execute tasks (fun _ _ -> called.Value <- true; Task.FromResult 0) |> ignore
+    let! ex = Assert.ThrowsAsync<ArgumentException>(fun () ->
+        execute tasks (fun _ _ -> called.Value <- true; async.Return 0) :> Task
     )
     Assert.Contains("cycle", ex.Message)
     Assert.False called.Value
+}

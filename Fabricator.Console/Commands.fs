@@ -6,14 +6,13 @@ module internal Fabricator.Console.Commands
 
 open System.Collections.Generic
 open System.IO
-open System.Threading.Tasks
 open Fabricator.Console.Lowering
 open Fabricator.Core
 
 let private name(t: LoweredTask) = t.Resource.PresentableName
 
 let private execute (output: TextWriter) (graph: TaskExecutor.TaskGraph<LoweredTask>)
-                    : Task<IReadOnlyDictionary<LoweredTask, TaskOutcome>> =
+                    : Async<IReadOnlyDictionary<LoweredTask, TaskOutcome>> =
     let onStarted(t: LoweredTask) =
         match t.Kind with
         | Check -> ()
@@ -28,7 +27,7 @@ let private execute (output: TextWriter) (graph: TaskExecutor.TaskGraph<LoweredT
         | _, Errored e -> output.WriteLine $"{name t}: error:\n{e}"
         | _ -> ()
 
-    TaskExecutor.execute graph (fun t inputs -> task {
+    TaskExecutor.execute graph (fun t inputs -> async {
         let! outcome = Lowering.run onStarted t inputs
         report t outcome
         return outcome
@@ -40,7 +39,7 @@ let private isError = function
 
 /// Applies the resources and their dependencies that are not applied yet. Returns whether all the required actions
 /// were successful.
-let apply (output: TextWriter) (resources: Resource seq): Task<bool> = task {
+let apply (output: TextWriter) (resources: Resource seq): Async<bool> = async {
     output.WriteLine "Applying changes to the current environment."
     let graph = Lowering.lower CheckAndApply resources
     let! results = execute (TextWriter.Synchronized output) graph
@@ -50,7 +49,7 @@ let apply (output: TextWriter) (resources: Resource seq): Task<bool> = task {
 type CheckStatus = AllApplied | NotAllApplied | CheckError
 
 /// Checks the resources and all their dependencies.
-let check (output: TextWriter) (resources: Resource seq): Task<CheckStatus> = task {
+let check (output: TextWriter) (resources: Resource seq): Async<CheckStatus> = async {
     output.WriteLine "Checking the current environment."
     let graph = Lowering.lower CheckOnly resources
     let! results = execute (TextWriter.Synchronized output) graph

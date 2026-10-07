@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 - All the bundled resources accept an optional `dependsOn` parameter to declare their dependencies.
 - `Resource.NoDependencies` for resources without dependencies.
+- Ctrl+C support in `EntryPoint.main`: on the first Ctrl+C, no new resources are processed, the running ones are notified via their `Async.CancellationToken`, and the program exits with code 2 after all of them have finished. A second Ctrl+C terminates the program immediately.
 
 ### Fixed
 - The `check` command now reports "Checking the current environment." instead of "Applying changes to the current environment." in the beginning.

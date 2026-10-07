@@ -2,10 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-/// Parallel execution of a dependency graph of tasks, based on Kahn's algorithm.
+/// Structured parallel execution of a dependency graph of tasks.
 module internal Fabricator.Console.TaskExecutor
 
-open System.Collections.Concurrent
 open System.Collections.Generic
 open System.Threading.Tasks
 
@@ -61,61 +60,44 @@ let private verifyAcyclic (graph: TaskGraph<'Key>) (dependents: Dictionary<'Key,
 /// no cycles; both are verified before any task starts.</param>
 /// <param name="action">The task action. Receives the task key and the results of its prerequisites (in the same
 /// order as the prerequisites are listed in the graph).</param>
-/// <returns>The results of all the tasks. Faults with the first exception thrown by any action; no new tasks are
-/// started after that.</returns>
+/// <returns>The results of all the tasks.</returns>
+/// <remarks>
+/// All the task actions are run as child computations of the returned one, and inherit its cancellation token. If any
+/// action fails, the other actions are cancelled, and the returned computation fails with the first exception only
+/// after all of the actions have finished; same for the cancellation. So, no actions are left running after the
+/// returned computation has completed, no matter how it completed.
+/// </remarks>
 let execute
     (graph: TaskGraph<'Key>)
-    (action: 'Key -> IReadOnlyList<'Key * 'Result> -> Task<'Result>)
-    : Task<IReadOnlyDictionary<'Key, 'Result>> =
+    (action: 'Key -> IReadOnlyList<'Key * 'Result> -> Async<'Result>)
+    : Async<IReadOnlyDictionary<'Key, 'Result>> = async {
     let dependents = buildDependentsMap graph
     verifyAcyclic graph dependents
 
-    let results = ConcurrentDictionary<'Key, 'Result>()
-    if graph.Count = 0 then Task.FromResult results else
+    let completions = Dictionary<'Key, TaskCompletionSource<'Result>>()
+    for KeyValue(key, _) in graph do
+        completions[key] <- TaskCompletionSource<'Result>(TaskCreationOptions.RunContinuationsAsynchronously)
 
-    // Number of unfinished prerequisites for each task:
-    let inDegree = Dictionary<'Key, int>()
-    for KeyValue(key, prerequisites) in graph do
-        inDegree[key] <- prerequisites.Count
-
-    let stateLock = obj()
-    let mutable completedCount = 0
-    let tcs = TaskCompletionSource<IReadOnlyDictionary<'Key, 'Result>>(
-        TaskCreationOptions.RunContinuationsAsynchronously
-    )
-
-    let rec start(key: 'Key): unit =
-        Task.Run(fun () -> processTask key) |> ignore
-
-    and processTask(key: 'Key): Task = task {
+    let processTask(key: 'Key) = async {
+        let completion = completions[key]
         try
-            let inputs =
-                graph[key]
-                |> Seq.map (fun prerequisite -> prerequisite, results[prerequisite])
-                |> Seq.toArray
+            let! ct = Async.CancellationToken
+            let inputs = ResizeArray()
+            for prerequisite in graph[key] do
+                let! result = Async.AwaitTask(completions[prerequisite].Task.WaitAsync ct)
+                inputs.Add(prerequisite, result)
+
             let! result = action key inputs
-            results[key] <- result
-
-            let readyTasks = ResizeArray()
-            lock stateLock (fun () ->
-                completedCount <- completedCount + 1
-                for dependent in dependents[key] do
-                    inDegree[dependent] <- inDegree[dependent] - 1
-                    if inDegree[dependent] = 0 then
-                        readyTasks.Add dependent
-
-                if completedCount = graph.Count then
-                    tcs.TrySetResult results |> ignore
-            )
-
-            if not tcs.Task.IsCompleted then
-                for ready in readyTasks do
-                    start ready
-        with
-        | ex -> tcs.TrySetException ex |> ignore
+            completion.SetResult result
+            return key, result
+        finally
+            // Unblocks the dependents in case this task hasn't completed successfully; no-op otherwise.
+            completion.TrySetCanceled() |> ignore
     }
 
-    for KeyValue(key, degree) in Seq.toArray inDegree do
-        if degree = 0 then start key
-
-    tcs.Task
+    let! results = graph.Keys |> Seq.map processTask |> Async.Parallel
+    let resultMap = Dictionary<'Key, 'Result>()
+    for key, result in results do
+        resultMap[key] <- result
+    return resultMap :> IReadOnlyDictionary<_, _>
+}
