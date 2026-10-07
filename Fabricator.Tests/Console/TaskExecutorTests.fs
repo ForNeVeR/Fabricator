@@ -186,9 +186,11 @@ let ``Cancellation reaches the running tasks``(): Task = task {
             TaskExecutor.execute tasks (fun key _ -> async {
                 executed.Enqueue key
                 let! ct = Async.CancellationToken
-                use _ = ct.Register(fun () -> observedCancellation.Value <- true)
-                runningStarted.SetResult()
-                do! Async.Sleep timeout
+                try
+                    runningStarted.SetResult()
+                    do! Async.Sleep timeout
+                finally
+                    observedCancellation.Value <- ct.IsCancellationRequested
                 return 0
             }),
             cancellationToken = cts.Token
