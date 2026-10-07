@@ -5,6 +5,7 @@
 /// Structured parallel execution of a dependency graph of tasks.
 module internal Fabricator.Console.TaskExecutor
 
+open System
 open System.Collections.Generic
 open System.Threading.Tasks
 
@@ -90,9 +91,11 @@ let execute
             let! result = action key inputs
             completion.SetResult result
             return key, result
-        finally
-            // Unblocks the dependents in case this task hasn't completed successfully; no-op otherwise.
+        with
+        | :? OperationCanceledException as e ->
             completion.TrySetCanceled() |> ignore
+            raise e
+            return Unchecked.defaultof<_> // unreachable
     }
 
     let! results = graph.Keys |> Seq.map processTask |> Async.Parallel
