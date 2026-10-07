@@ -19,20 +19,18 @@ let private execute (output: TextWriter) (graph: TaskExecutor.TaskGraph<LoweredT
         | Check -> ()
         | Apply -> output.WriteLine $"{name t}: applying…"
 
-    let report (t: LoweredTask) (inputs: IReadOnlyList<LoweredTask * TaskOutcome>) (outcome: TaskOutcome) =
+    let report (t: LoweredTask) (outcome: TaskOutcome) =
         match t.Kind, outcome with
         | Check, CheckPassed -> output.WriteLine $"{name t}: already applied."
         | Check, CheckFailed -> output.WriteLine $"{name t}: not applied."
+        | Check, Blocked -> output.WriteLine $"{name t}: skipped because a dependency has failed."
         | Apply, Applied -> output.WriteLine $"{name t}: applied."
-        | Apply, Blocked when inputs |> Seq.contains ({ t with Kind = Check }, CheckFailed) ->
-            // Only report the tasks blocked by dependencies, not by the resource's own check failure.
-            output.WriteLine $"{name t}: skipped because a dependency has failed."
         | _, Errored e -> output.WriteLine $"{name t}: error:\n{e}"
         | _ -> ()
 
     TaskExecutor.execute graph (fun t inputs -> task {
         let! outcome = Lowering.run onStarted t inputs
-        report t inputs outcome
+        report t outcome
         return outcome
     })
 

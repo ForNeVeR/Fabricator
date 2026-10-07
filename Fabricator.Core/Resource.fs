@@ -32,8 +32,13 @@ type Resource =
         /// </summary>
         /// <remarks>
         /// <para>
-        /// All the dependencies are always checked together with this resource, independently of each other. While
-        /// applying, the dependencies that are not applied yet get applied before this resource.
+        /// While applying, the dependencies that are not applied yet get applied before this resource, and this
+        /// resource is only checked after all its dependencies are in their desired state. If any of the dependencies
+        /// fails to be checked or applied, this resource is skipped.
+        /// </para>
+        /// <para>
+        /// While only checking the environment, all the dependencies are checked together with this resource,
+        /// independently of each other.
         /// </para>
         /// <para>
         /// Use <see cref="P:Fabricator.Core.ResourceModule.NoDependencies"/> for resources without dependencies.
@@ -47,7 +52,8 @@ type Resource =
         /// </summary>
         /// <remarks>
         /// This function should not change the environment. It may be called concurrently with checks and
-        /// applications of other resources.
+        /// applications of other resources. While applying, it is only called after all the dependencies from
+        /// <see cref="P:Fabricator.Core.Resource.DependsOn"/> are applied.
         /// </remarks>
         AlreadyApplied: unit -> Async<bool>
 

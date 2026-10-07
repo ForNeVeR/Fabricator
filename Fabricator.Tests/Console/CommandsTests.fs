@@ -206,19 +206,48 @@ let ``Apply skips applied dependencies but still applies their dependencies``():
 }
 
 [<Fact>]
-let ``Dependency is applied only after its dependents are checked``(): Task = task {
+let ``Dependent is checked only after its dependencies are applied``(): Task = task {
     let log = EventLog()
     let d = FakeResource("D", log)
-    let r = FakeResource("R", log, d)
-    r.OnCheck <- fun () -> async {
+    d.OnApply <- fun () -> async {
         do! Async.Sleep 100
-        log.Add "check R finished"
+        log.Add "apply D finished"
     }
+    let r = FakeResource("R", log, d)
 
     let! success, _ = runApply [ r ]
 
     Assert.True success
-    assertBefore "check R finished" "apply D" log
+    assertBefore "apply D finished" "check R" log
+}
+
+[<Fact>]
+let ``Dependent whose check requires its dependency is applied in a single run``(): Task = task {
+    let log = EventLog()
+    let d = FakeResource("D", log)
+    let r = FakeResource("R", log, d)
+    r.OnCheck <- fun () -> async {
+        if not d.IsApplied then failwith "D is required to check R."
+    }
+
+    let! success, output = runApply [ r ]
+
+    Assert.True(success, output)
+    assertEvents [ "check D"; "apply D"; "check R"; "apply R" ] log
+}
+
+[<Fact>]
+let ``Dependent applied by its dependency is not applied again``(): Task = task {
+    let log = EventLog()
+    let d = FakeResource("D", log)
+    let r = FakeResource("R", log, d)
+    d.OnApply <- fun () -> async { r.IsApplied <- true }
+
+    let! success, output = runApply [ r ]
+
+    Assert.True(success, output)
+    assertEvents [ "check D"; "apply D"; "check R" ] log
+    Assert.Contains("R: already applied.", output)
 }
 
 [<Fact>]
@@ -258,7 +287,7 @@ let ``Failed dependency blocks its dependents but not the independent resources`
     let! success, output = runApply [ r; independent ]
 
     Assert.False success
-    assertEvents [ "check R"; "check D"; "check Independent"; "apply D"; "apply Independent" ] log
+    assertEvents [ "check D"; "check Independent"; "apply D"; "apply Independent" ] log
     Assert.Contains("D: error:", output)
     Assert.Contains("Apply failure", output)
     Assert.Contains("R: skipped because a dependency has failed.", output)
@@ -275,7 +304,7 @@ let ``Dependency check error blocks the dependent application``(): Task = task {
     let! success, output = runApply [ r ]
 
     Assert.False success
-    assertEvents [ "check R"; "check D" ] log
+    assertEvents [ "check D" ] log
     Assert.Contains("R: skipped because a dependency has failed.", output)
 }
 
@@ -290,6 +319,7 @@ let ``Root check error fails the application but dependencies are still applied`
 
     Assert.False success
     assertEvents [ "check R"; "check D"; "apply D" ] log
+    assertBefore "apply D" "check R" log
     Assert.DoesNotContain("skipped", output)
 }
 

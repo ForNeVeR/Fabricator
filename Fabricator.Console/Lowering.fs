@@ -54,55 +54,33 @@ let private collectAll(roots: Resource seq): HashSet<Resource> =
         walk root
     visited
 
-/// Collects all the resources depending on the passed one, directly or transitively.
-let private collectDependents (dependents: Dictionary<Resource, ResizeArray<Resource>>) (resource: Resource) =
-    let visited = HashSet<Resource>()
-    let rec walk(r: Resource) =
-        for dependent in dependents[r] do
-            if visited.Add dependent then
-                walk dependent
-    walk resource
-    visited
-
 /// <summary>
 /// Converts the resource graph reachable from <paramref name="roots"/> to a graph of lowered tasks.
 /// </summary>
 /// <param name="mode">The execution mode.</param>
 /// <param name="roots">The roots of the resource graph.</param>
 /// <remarks>
-/// <para>For each resource (including the transitive dependencies of the roots), a check task is created. Checks are
-/// independent of each other, so the check tasks have no prerequisites.</para>
+/// <para>For each resource (including the transitive dependencies of the roots), a check task is created. In
+/// <see cref="F:Fabricator.Console.Lowering.ExecutionMode.CheckOnly"/> mode, checks are independent of each other, so
+/// the check tasks have no prerequisites.</para>
 /// <para>In <see cref="F:Fabricator.Console.Lowering.ExecutionMode.CheckAndApply"/> mode, for each resource an apply
-/// task is also created. Its prerequisites are the check task of the same resource, the apply tasks of all the
-/// resource's dependencies, and the check tasks of all the resources depending on it (directly or transitively): this
-/// way, a resource is never changed while a resource depending on it is still being checked.</para>
+/// task is also created, with the check task of the same resource as its only prerequisite. The prerequisites of a
+/// check task are the apply tasks of all the resource's dependencies: this way, a resource is only checked when all its
+/// dependencies are already in their desired state.</para>
 /// </remarks>
 /// <returns>The lowered graph.</returns>
 let lower (mode: ExecutionMode) (roots: Resource seq): TaskExecutor.TaskGraph<LoweredTask> =
     let check r = { Kind = Check; Resource = r }
     let apply r = { Kind = Apply; Resource = r }
 
-    let allResources = collectAll roots
-    let dependents = Dictionary<Resource, ResizeArray<Resource>>()
-    for resource in allResources do
-        dependents[resource] <- ResizeArray()
-    for resource in allResources do
-        for dependency in resource.DependsOn do
-            dependents[dependency].Add resource
-
     let tasks = Dictionary<LoweredTask, IReadOnlyList<LoweredTask>>()
-    for resource in allResources do
-        tasks[check resource] <- Array.empty
+    for resource in collectAll roots do
         match mode with
-        | CheckOnly -> ()
+        | CheckOnly ->
+            tasks[check resource] <- Array.empty
         | CheckAndApply ->
-            tasks[apply resource] <- [|
-                check resource
-                for dependency in resource.DependsOn do
-                    apply dependency
-                for dependent in collectDependents dependents resource do
-                    check dependent
-            |]
+            tasks[check resource] <- [| for dependency in resource.DependsOn -> apply dependency |]
+            tasks[apply resource] <- [| check resource |]
 
     tasks
 
@@ -128,9 +106,8 @@ let private runApply(resource: Resource): Task<TaskOutcome> = task {
 
 /// <summary>Executes a lowered task according to the results of its prerequisites.</summary>
 /// <remarks>
-/// Check tasks always run. An apply task runs only if the resource's own check has returned false and none of the
-/// apply tasks of its dependencies have failed or have been blocked. Results of the checks of other resources (the
-/// ones depending on this resource) are ignored.
+/// A check task runs only if none of its prerequisites (the apply tasks of the resource's dependencies) have failed
+/// or have been blocked. An apply task runs only if the resource's own check has returned false.
 /// </remarks>
 /// <param name="onStarted">Called before the actual resource action (check or apply) starts.</param>
 /// <param name="loweredTask">The task to execute.</param>
@@ -142,6 +119,7 @@ let run
     : Task<TaskOutcome> =
     let resource = loweredTask.Resource
     match loweredTask.Kind with
+    | Check when inputs |> Seq.exists (snd >> isFailure) -> Task.FromResult Blocked
     | Check ->
         onStarted loweredTask
         runCheck resource
@@ -153,11 +131,9 @@ let run
                 raise <| InvalidOperationException $"Check result not found for task \"{loweredTask}\".")
         match ownCheck with
         | CheckPassed -> Task.FromResult NotRequired
-        | Errored _ -> Task.FromResult Blocked
-        | CheckFailed when inputs |> Seq.exists (fun (t, outcome) -> t.Kind = Apply && isFailure outcome) ->
-            Task.FromResult Blocked
+        | Errored _ | Blocked -> Task.FromResult Blocked
         | CheckFailed ->
             onStarted loweredTask
             runApply resource
-        | Applied | NotRequired | Blocked ->
+        | Applied | NotRequired ->
             raise <| InvalidOperationException $"Unexpected check outcome for task \"{loweredTask}\": {ownCheck}."

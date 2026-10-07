@@ -26,8 +26,9 @@ let private runSynchronously(task: Task<'a>): 'a =
 /// <summary>Performs tasks on the passed resources according to the passed arguments.</summary>
 /// <remarks>
 /// The passed resources and all their dependencies (see <see cref="P:Fabricator.Core.Resource.DependsOn"/>) are
-/// processed. The checks are performed in parallel; the resources are applied in parallel, except that a resource is
-/// only applied after all its dependencies.
+/// processed. When applying, a resource is checked and, if required, applied only after all its dependencies are
+/// applied; independent resources are processed in parallel. When only checking, all the resources are checked in
+/// parallel.
 /// </remarks>
 /// <param name="args">The command-line arguments.</param>
 /// <param name="resources">The root resources, i.e., the resources describing the desired environment state.</param>

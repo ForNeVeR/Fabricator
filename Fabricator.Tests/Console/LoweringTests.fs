@@ -55,7 +55,7 @@ let ``Check-only mode has independent check tasks for all reachable resources``(
     assertPrerequisites (check e) [] graph
 
 [<Fact>]
-let ``Apply mode applies dependencies before dependents``(): unit =
+let ``Apply mode checks resources after their dependencies are applied``(): unit =
     let e = resource "E" []
     let d = resource "D" [ e ]
     let r = resource "R" [ d ]
@@ -63,15 +63,15 @@ let ``Apply mode applies dependencies before dependents``(): unit =
     let graph = lowerFakes CheckAndApply [ r ]
 
     assertTasks [ check r; check d; check e; apply r; apply d; apply e ] graph
-    assertPrerequisites (check r) [] graph
-    assertPrerequisites (check d) [] graph
+    assertPrerequisites (check r) [ apply d ] graph
+    assertPrerequisites (check d) [ apply e ] graph
     assertPrerequisites (check e) [] graph
-    assertPrerequisites (apply r) [ check r; apply d ] graph
-    assertPrerequisites (apply d) [ check d; apply e; check r ] graph
-    assertPrerequisites (apply e) [ check e; check d; check r ] graph
+    assertPrerequisites (apply r) [ check r ] graph
+    assertPrerequisites (apply d) [ check d ] graph
+    assertPrerequisites (apply e) [ check e ] graph
 
 [<Fact>]
-let ``Shared dependency is lowered once and applied after all its dependents are checked``(): unit =
+let ``Shared dependency is lowered once``(): unit =
     let d = resource "D" []
     let r1 = resource "R1" [ d ]
     let r2 = resource "R2" [ d ]
@@ -80,9 +80,9 @@ let ``Shared dependency is lowered once and applied after all its dependents are
 
     assertTasks [ check r1; check r2; check d; apply r1; apply r2; apply d ] graph
     assertPrerequisites (check d) [] graph
-    assertPrerequisites (apply d) [ check d; check r1; check r2 ] graph
-    assertPrerequisites (apply r1) [ check r1; apply d ] graph
-    assertPrerequisites (apply r2) [ check r2; apply d ] graph
+    assertPrerequisites (apply d) [ check d ] graph
+    assertPrerequisites (check r1) [ apply d ] graph
+    assertPrerequisites (check r2) [ apply d ] graph
 
 [<Fact>]
 let ``Root that is also a dependency of another root is lowered once``(): unit =
@@ -92,8 +92,8 @@ let ``Root that is also a dependency of another root is lowered once``(): unit =
     let graph = lowerFakes CheckAndApply [ r; d ]
 
     assertTasks [ check r; check d; apply r; apply d ] graph
-    assertPrerequisites (apply r) [ check r; apply d ] graph
-    assertPrerequisites (apply d) [ check d; check r ] graph
+    assertPrerequisites (check r) [ apply d ] graph
+    assertPrerequisites (apply d) [ check d ] graph
 
 [<Fact>]
 let ``Resources not reachable from roots are not lowered``(): unit =
@@ -139,5 +139,17 @@ let ``Diamond dependency is lowered once per resource``(): unit =
     let a = resource "A" [ b; c ]
     let graph = lowerFakes CheckAndApply [ a ]
     Assert.Equal(8, graph.Count)
-    assertPrerequisites (apply d) [ check d; check b; check c; check a ] graph
-    assertPrerequisites (apply a) [ check a; apply b; apply c ] graph
+    assertPrerequisites (check a) [ apply b; apply c ] graph
+    assertPrerequisites (check b) [ apply d ] graph
+    assertPrerequisites (check c) [ apply d ] graph
+
+[<Fact>]
+let ``Apply mode graph size is linear in the resource graph size``(): unit =
+    let chainLength = 100
+    let chain = Seq.fold (fun dependencies i -> [ resource $"R{i}" dependencies ]) [] [ 1 .. chainLength ]
+
+    let graph = lowerFakes CheckAndApply chain
+
+    Assert.Equal(2 * chainLength, graph.Count)
+    // One prerequisite for each apply task, and one for each check task except the one with no dependencies.
+    Assert.Equal(2 * chainLength - 1, graph.Values |> Seq.sumBy _.Count)
