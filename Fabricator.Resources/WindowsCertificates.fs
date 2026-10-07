@@ -111,6 +111,7 @@ type WindowsCertificates =
             PresentableName =
                 $"Certificate \"{certificatePath.FileName}\" in {storeLocation.Location}/{storeLocation.StoreName}"
             DependsOn = dependencies dependsOn
+            Lock = None
 
             AlreadyApplied = fun () -> async {
                 let certificate = cert.Value

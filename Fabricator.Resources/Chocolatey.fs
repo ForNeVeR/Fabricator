@@ -11,6 +11,11 @@ open Fabricator.Resources.ResourceUtil
 
 type Chocolatey =
     /// <summary>
+    /// The concurrency group of the resources running Chocolatey, which doesn't support concurrent package operations.
+    /// </summary>
+    static member ConcurrencyGroup: ConcurrencyGroup = ConcurrencyGroup "Chocolatey"
+
+    /// <summary>
     /// Represents a Chocolatey package resource within the Fabricator framework.
     /// This resource ensures that the specified Chocolatey package is installed
     /// with the given version on the system.
@@ -47,6 +52,7 @@ type Chocolatey =
         {
             PresentableName = $"Package {name}"
             DependsOn = dependencies dependsOn
+            Lock = Some Chocolatey.ConcurrencyGroup
 
             AlreadyApplied = fun () -> async {
                 let! installedVersion = getInstalledPackageVersion()

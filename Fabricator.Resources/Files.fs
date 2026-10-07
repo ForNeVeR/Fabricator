@@ -56,6 +56,7 @@ type Files =
         {
             PresentableName = resourceName source
             DependsOn = dependencies dependsOn
+            Lock = None
             AlreadyApplied = fun () -> async {
                 if not(File.Exists targetAbsolutePath) then return false else
                 let! ct = Async.CancellationToken
@@ -76,6 +77,7 @@ type Files =
         {
             PresentableName = $"Directory \"{path.Value}\""
             DependsOn = dependencies dependsOn
+            Lock = None
             AlreadyApplied = fun () -> async {
                 return path.ExistsDirectory()
             }
@@ -94,6 +96,7 @@ type Files =
         {
             PresentableName = $"File \"{path.Value}\""
             DependsOn = dependencies dependsOn
+            Lock = None
             AlreadyApplied = fun () -> async {
                 return false
             }

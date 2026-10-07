@@ -123,6 +123,7 @@ let ``Resources with equal contents are lowered separately``(): unit =
     let create() = {
         PresentableName = "R"
         DependsOn = Resource.NoDependencies
+        Lock = None
         AlreadyApplied = alreadyApplied
         Apply = apply
     }

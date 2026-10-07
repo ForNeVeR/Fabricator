@@ -12,6 +12,13 @@ open TruePath
 open TruePath.SystemIo
 
 type DotNetTool =
+    /// <summary>
+    /// The concurrency group of the resources managing the .NET tools installed to the specified directory.
+    /// </summary>
+    /// <param name="installationPath">The tool installation path.</param>
+    static member ConcurrencyGroup(installationPath: AbsolutePath): ConcurrencyGroup =
+        ConcurrencyGroup $"DotNetTool:{installationPath.Value}"
+
     static member Install(
         name: string,
         version: string,
@@ -20,6 +27,7 @@ type DotNetTool =
     ): Resource = {
             PresentableName = $"{name} {version}"
             DependsOn = dependencies dependsOn
+            Lock = Some(DotNetTool.ConcurrencyGroup installationPath)
             AlreadyApplied = fun () -> async {
                 if not <| installationPath.ExistsDirectory() then return false else
                 let! execResult =

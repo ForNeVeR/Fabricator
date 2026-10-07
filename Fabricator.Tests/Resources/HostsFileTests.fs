@@ -204,3 +204,27 @@ let ``DefaultHostsPath returns Unix path on non-Windows``(): unit =
     if not (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) then
         let path = HostsFile.DefaultHostsPath
         Assert.Equal("/etc/hosts", path.Value)
+
+[<Fact>]
+let ``Records for the same hosts file share a concurrency group``(): unit =
+    let path = AbsolutePath "/etc/hosts"
+    let first = HostsFile.Record("127.0.0.1", "first.example", path)
+    let second = HostsFile.Record("127.0.0.1", "second.example", path)
+    Assert.Equal(Some(HostsFile.ConcurrencyGroup path), first.Lock)
+    Assert.Equal(first.Lock, second.Lock)
+
+[<Fact>]
+let ``Several records applied together are all written to the hosts file``(): Task =
+    withTempFile (fun path -> task {
+        do! path.WriteAllTextAsync "127.0.0.1 localhost\n"
+        let hosts = [ for i in 1 .. 10 -> $"host{i}.example" ]
+        let resources = [ for host in hosts -> HostsFile.Record("127.0.0.1", host, path) ]
+
+        use output = new StringWriter()
+        let! success = Fabricator.Console.Commands.apply output resources |> Async.StartAsTask
+
+        Assert.True(success, output.ToString())
+        let! lines = path.ReadAllLinesAsync()
+        for host in hosts do
+            Assert.Contains($"127.0.0.1 {host}", lines)
+    })

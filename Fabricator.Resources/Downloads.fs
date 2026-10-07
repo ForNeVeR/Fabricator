@@ -34,6 +34,7 @@ type Downloads =
         {
             PresentableName = $"Download file from {uri} to {downloadPath}"
             DependsOn = dependencies dependsOn
+            Lock = None
             AlreadyApplied = fun () -> async {
                 let! downloadedHash = calcHash downloadPath
                 return downloadedHash = Some expectedHash

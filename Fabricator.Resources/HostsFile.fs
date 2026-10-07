@@ -24,6 +24,13 @@ type HostsFile =
             AbsolutePath "/etc/hosts"
 
     /// <summary>
+    /// The concurrency group of the resources managing the entries of the specified hosts file.
+    /// </summary>
+    /// <param name="hostsFilePath">The path to the hosts file.</param>
+    static member ConcurrencyGroup(hostsFilePath: AbsolutePath): ConcurrencyGroup =
+        ConcurrencyGroup $"HostsFile:{hostsFilePath.Value}"
+
+    /// <summary>
     /// Creates a resource for managing a host file entry.
     /// </summary>
     /// <param name="ipAddress">The IP address for the host entry.</param>
@@ -82,6 +89,7 @@ type HostsFile =
         {
             PresentableName = $"Host file entry \"{host}\""
             DependsOn = dependencies dependsOn
+            Lock = Some(HostsFile.ConcurrencyGroup filePath)
 
             AlreadyApplied = fun () -> async {
                 if not (filePath.Exists()) then

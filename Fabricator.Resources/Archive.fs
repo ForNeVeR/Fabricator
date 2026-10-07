@@ -27,6 +27,7 @@ type Archive =
         {
             PresentableName = $"Unpack archive \"{archive}\" to \"{destinationDirectory.Value}\""
             DependsOn = dependencies dependsOn
+            Lock = None
             AlreadyApplied = fun () -> async {
                 if not(outputHashFile.Exists()) then return false
                 else

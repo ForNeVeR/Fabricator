@@ -7,6 +7,14 @@ namespace Fabricator.Core
 open System.Collections.Immutable
 
 /// <summary>
+/// A group of resources sharing some part of the environment that is not safe to check or change concurrently, e.g.
+/// the same file or the same package manager. Fabricator never runs checks or applications of resources from the same
+/// group concurrently.
+/// </summary>
+/// <remarks>Groups with equal names are the same group.</remarks>
+type ConcurrencyGroup = ConcurrencyGroup of name: string
+
+/// <summary>
 /// A resource is a part of the desired environment state that Fabricator is able to check and apply.
 /// </summary>
 /// <remarks>
@@ -67,6 +75,17 @@ type Resource =
         /// that are not connected to this one via dependencies.
         /// </remarks>
         Apply: unit -> Async<unit>
+
+        /// <summary>
+        /// The concurrency group of the resource, or <c>None</c> if the resource can be checked and applied
+        /// concurrently with any other resources it's not connected to via dependencies.
+        /// </summary>
+        /// <remarks>
+        /// Checks and applications of resources from the same group never run concurrently. Fabricator doesn't keep
+        /// the group locked between the check and the application of the same resource, so the application should
+        /// not rely on the environment staying unchanged since the check.
+        /// </remarks>
+        Lock: ConcurrencyGroup option
     }
     override this.ToString() = this.PresentableName
 

@@ -110,15 +110,53 @@ let private runApply(resource: Resource): Async<TaskOutcome> = async {
     | ex when isResourceError ct ex -> return Errored ex
 }
 
+/// Semaphores of the resource concurrency groups, one per group.
+type Locks = IReadOnlyDictionary<ConcurrencyGroup, SemaphoreSlim>
+
+/// Creates the semaphores for all the concurrency groups of the resources from the graph.
+let createLocks(graph: TaskExecutor.TaskGraph<LoweredTask>): Locks =
+    upcast (
+        graph.Keys
+        |> Seq.collect(fun task -> task.Resource.Lock |> Option.toArray)
+        |> Seq.distinct
+        |> Seq.map(fun group -> KeyValuePair(group, new SemaphoreSlim(1, 1)))
+        |> Dictionary
+    )
+
+/// <summary>
+/// Runs the action while holding the semaphore of the resource's concurrency group, if the resource has one.
+/// </summary>
+/// <remarks>
+/// Every action holds at most one semaphore, and the semaphore is only taken after all the task's prerequisites have
+/// completed, so the actions waiting for the semaphores cannot deadlock.
+/// </remarks>
+let private withLock (locks: Locks) (resource: Resource) (action: unit -> Async<TaskOutcome>) = async {
+    match resource.Lock with
+    | None -> return! action()
+    | Some group ->
+        let semaphore = locks[group]
+        let! ct = Async.CancellationToken
+        do! Async.AwaitTask(semaphore.WaitAsync ct)
+        try
+            return! action()
+        finally
+            semaphore.Release() |> ignore
+}
+
 /// <summary>Executes a lowered task according to the results of its prerequisites.</summary>
 /// <remarks>
 /// A check task runs only if none of its prerequisites (the apply tasks of the resource's dependencies) have failed
-/// or have been blocked. An apply task runs only if the resource's own check has returned false.
+/// or have been blocked. An apply task runs only if the resource's own check has returned false. The actual resource
+/// action (check or apply) is run while holding the semaphore of the resource's concurrency group.
 /// </remarks>
+/// <param name="locks">
+/// The semaphores of the concurrency groups, see <see cref="M:Fabricator.Console.Lowering.createLocks"/>.
+/// </param>
 /// <param name="onStarted">Called before the actual resource action (check or apply) starts.</param>
 /// <param name="loweredTask">The task to execute.</param>
 /// <param name="inputs">The results of the task's prerequisites.</param>
 let run
+    (locks: Locks)
     (onStarted: LoweredTask -> unit)
     (loweredTask: LoweredTask)
     (inputs: IReadOnlyList<LoweredTask * TaskOutcome>)
@@ -127,8 +165,10 @@ let run
     match loweredTask.Kind with
     | Check when inputs |> Seq.exists (snd >> isFailure) -> async.Return Blocked
     | Check ->
-        onStarted loweredTask
-        runCheck resource
+        withLock locks resource (fun () ->
+            onStarted loweredTask
+            runCheck resource
+        )
     | Apply ->
         let ownCheck =
             inputs
@@ -139,7 +179,9 @@ let run
         | CheckPassed -> async.Return NotRequired
         | Errored _ | Blocked -> async.Return Blocked
         | CheckFailed ->
-            onStarted loweredTask
-            runApply resource
+            withLock locks resource (fun () ->
+                onStarted loweredTask
+                runApply resource
+            )
         | Applied | NotRequired ->
             raise <| InvalidOperationException $"Unexpected check outcome for task \"{loweredTask}\": {ownCheck}."

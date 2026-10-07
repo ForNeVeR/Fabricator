@@ -17,10 +17,11 @@ type EventLog() =
     member this.IndexOf(event: string): int = List.findIndex ((=) event) this.Events
 
 /// A resource recording its checks and applications to the log.
-type FakeResource(name: string, log: EventLog, [<ParamArray>] dependencies: FakeResource[]) as this =
+type FakeResource(name: string, log: EventLog, lock: ConcurrencyGroup option, dependencies: FakeResource[]) as this =
     let resource = {
         PresentableName = name
         DependsOn = ImmutableHashSet.CreateRange(dependencies |> Seq.map (fun (d: FakeResource) -> d.Resource))
+        Lock = lock
         AlreadyApplied = fun () -> async {
             log.Add $"check {name}"
             do! this.OnCheck()
@@ -36,6 +37,9 @@ type FakeResource(name: string, log: EventLog, [<ParamArray>] dependencies: Fake
             | None -> this.IsApplied <- true
         }
     }
+
+    new(name: string, log: EventLog, [<ParamArray>] dependencies: FakeResource[]) =
+        FakeResource(name, log, None, dependencies)
 
     member val IsApplied = false with get, set
     member val CheckError: exn option = None with get, set

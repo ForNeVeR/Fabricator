@@ -27,8 +27,9 @@ let private execute (output: TextWriter) (graph: TaskExecutor.TaskGraph<LoweredT
         | _, Errored e -> output.WriteLine $"{name t}: error:\n{e}"
         | _ -> ()
 
+    let locks = Lowering.createLocks graph
     TaskExecutor.execute graph (fun t inputs -> async {
-        let! outcome = Lowering.run onStarted t inputs
+        let! outcome = Lowering.run locks onStarted t inputs
         report t outcome
         return outcome
     })

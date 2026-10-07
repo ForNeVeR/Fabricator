@@ -356,3 +356,50 @@ let ``Cancellation stops the application without starting dependents or reportin
     assertEvents [ "check D"; "apply D" ] log
     Assert.DoesNotContain("error", output.ToString())
 }
+/// Tracks the maximum number of resource actions running at the same time.
+type private ConcurrencyMeter() =
+    let lockObj = obj()
+    let mutable current = 0
+    let mutable maximum = 0
+    member _.Maximum = lock lockObj (fun () -> maximum)
+    member _.Measure(): Async<unit> = async {
+        lock lockObj (fun () ->
+            current <- current + 1
+            maximum <- max maximum current
+        )
+        do! Async.Sleep 50
+        lock lockObj (fun () -> current <- current - 1)
+    }
+
+[<Fact>]
+let ``Resources from the same concurrency group are never processed concurrently``(): Task = task {
+    let log = EventLog()
+    let group = Some(ConcurrencyGroup "Group")
+    let resources = [ for name in [ "A"; "B"; "C" ] -> FakeResource(name, log, group, [||]) ]
+    let meter = ConcurrencyMeter()
+    for resource in resources do
+        resource.OnCheck <- meter.Measure
+        resource.OnApply <- meter.Measure
+
+    let! success, output = runApply resources
+
+    Assert.True(success, output)
+    assertEvents [ "check A"; "check B"; "check C"; "apply A"; "apply B"; "apply C" ] log
+    Assert.Equal(1, meter.Maximum)
+}
+
+[<Fact>]
+let ``Resources from different concurrency groups are processed in parallel``(): Task = task {
+    let log = EventLog()
+    let resources = [
+        FakeResource("A", log, Some(ConcurrencyGroup "A"), [||])
+        FakeResource("B", log, Some(ConcurrencyGroup "B"), [||])
+        FakeResource("NoGroup", log)
+    ]
+    let started = requireConcurrency (fun r hook -> r.OnApply <- hook) resources
+
+    let! success, output = runApply resources
+
+    Assert.True(success, output)
+    Assert.Equal(3, started.Value)
+}

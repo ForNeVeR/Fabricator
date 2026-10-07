@@ -17,6 +17,7 @@ type WindowsServices =
         {
             PresentableName = $"Service \"{name}\""
             DependsOn = dependencies dependsOn
+            Lock = None
             AlreadyApplied = fun () -> async {
                 return
                     match WindowsServiceManager.GetService name with
