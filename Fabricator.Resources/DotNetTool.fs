@@ -11,11 +11,10 @@ open TruePath
 open TruePath.SystemIo
 
 type DotNetTool =
-    static member Install(name: string, version: string, installationPath: AbsolutePath): IResource = {
-        new IResource with
-            member _.DependsOn = Resource.NoDependencies
-            member _.PresentableName = $"{name} {version}"
-            member this.AlreadyApplied() = async {
+    static member Install(name: string, version: string, installationPath: AbsolutePath): Resource = {
+            PresentableName = $"{name} {version}"
+            DependsOn = Resource.NoDependencies
+            AlreadyApplied = fun () -> async {
                 if not <| installationPath.ExistsDirectory() then return false else
                 let! execResult =
                     runCommand "dotnet" [|
@@ -40,7 +39,7 @@ type DotNetTool =
 
                 return packageVersion = version
             }
-            member this.Apply() = async {
+            Apply = fun () -> async {
                 let! execResult =
                     runCommand "dotnet" [|
                         "tool"

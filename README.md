@@ -71,7 +71,7 @@ exit <| EntryPoint.main fsi.CommandLineArgs resources
 
 This script will make sure there's an executable `C:\Programs\shawl\shawl.exe` downloaded from the specified URL. This executable might then be used for other resources' setup, e.g., for the [Windows service resource][docs.windows-service].
 
-Resources passed to `EntryPoint.main` are processed in parallel, and their order doesn't matter. If a resource requires another one to be applied first, declare that via `IResource.DependsOn` (e.g., using `Resource.dependsOn` as in the example above). A resource's dependencies don't have to be passed to `EntryPoint.main` explicitly: they are always checked and, if required, applied before the resource itself.
+Resources passed to `EntryPoint.main` are processed in parallel, and their order doesn't matter. If a resource requires another one to be applied first, declare that via `Resource.DependsOn` (e.g., using `Resource.dependsOn` as in the example above). A resource's dependencies don't have to be passed to `EntryPoint.main` explicitly: they are always checked and, if required, applied before the resource itself.
 
 Prerequisites
 -------------

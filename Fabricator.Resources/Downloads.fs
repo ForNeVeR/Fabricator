@@ -18,15 +18,15 @@ let private calcHash(path: AbsolutePath) = async {
         return Some result
 }
 
-type private DownloadResource(uri: Uri, expectedHash: Sha256Hash, downloadPath: AbsolutePath) =
-    interface IResource with
-        member _.DependsOn = Resource.NoDependencies
-        member _.PresentableName: string = $"Download file from {uri} to {downloadPath}"
-        member _.AlreadyApplied(): Async<bool> = async {
+let downloadFile(uri: Uri, expectedHash: Sha256Hash, downloadPath: AbsolutePath): Resource =
+    {
+        PresentableName = $"Download file from {uri} to {downloadPath}"
+        DependsOn = Resource.NoDependencies
+        AlreadyApplied = fun () -> async {
             let! downloadedHash = calcHash downloadPath
             return downloadedHash = Some expectedHash
         }
-        member _.Apply(): Async<unit> = async {
+        Apply = fun () -> async {
             downloadPath.Parent.Value.CreateDirectory()
 
             use httpClient = new HttpClient()
@@ -47,6 +47,4 @@ type private DownloadResource(uri: Uri, expectedHash: Sha256Hash, downloadPath: 
                 let actualHash = downloadedHash |> Option.map string |> Option.defaultValue "None"
                 failwithf $"Hash mismatch for URL \"{uri}\":\nexpected hash {expectedHash},\nactual hash   {actualHash}."
         }
-
-let downloadFile(uri: Uri, hash: Sha256Hash, path: AbsolutePath): IResource =
-    DownloadResource(uri, hash, path)
+    }

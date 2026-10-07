@@ -83,8 +83,8 @@ let private addCertificateToStore (cert: X509Certificate2) (storeLocation: Certi
 /// <param name="certificatePath">The absolute path to the certificate file to install.</param>
 /// <param name="storeLocation">The certificate store location where the certificate should be installed.</param>
 /// <returns>
-/// An implementation of the <see cref="T:Fabricator.Core.IResource"/> interface, which provides methods
-/// to check if the certificate is already installed and to install it if needed.
+/// A <see cref="T:Fabricator.Core.Resource"/> checking if the certificate is already installed and installing it if
+/// needed.
 /// </returns>
 /// <remarks>
 /// This feature is Windows-only. On other platforms, certificate management varies significantly.
@@ -97,20 +97,20 @@ let private addCertificateToStore (cert: X509Certificate2) (storeLocation: Certi
 /// let certResource = trustedCertificate(AbsolutePath @"C:\certs\mycert.cer", CertificateStores.LocalMachineTrustedRootCertificationAuthorities)
 /// </code>
 /// </example>
-let trustedCertificate (certificatePath: AbsolutePath) (storeLocation: CertificateStoreLocation): IResource =
+let trustedCertificate (certificatePath: AbsolutePath) (storeLocation: CertificateStoreLocation): Resource =
     let cert = lazy (getCertificateFromFile certificatePath)
 
-    { new IResource with
-        member _.DependsOn = Resource.NoDependencies
-        member this.PresentableName =
+    {
+        PresentableName =
             $"Certificate \"{certificatePath.FileName}\" in {storeLocation.Location}/{storeLocation.StoreName}"
+        DependsOn = Resource.NoDependencies
 
-        member this.AlreadyApplied() = async {
+        AlreadyApplied = fun () -> async {
             let certificate = cert.Value
             return isCertificateInStore certificate storeLocation
         }
 
-        member this.Apply() = async {
+        Apply = fun () -> async {
             let certificate = cert.Value
             addCertificateToStore certificate storeLocation
         }

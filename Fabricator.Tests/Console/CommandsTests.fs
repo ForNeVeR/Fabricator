@@ -16,13 +16,13 @@ open Xunit
 
 let private runCheck(roots: FakeResource list) = task {
     use output = new StringWriter()
-    let! status = Commands.check output (roots |> Seq.cast<IResource>)
+    let! status = Commands.check output (roots |> Seq.map _.Resource)
     return status, output.ToString()
 }
 
 let private runApply(roots: FakeResource list) = task {
     use output = new StringWriter()
-    let! success = Commands.apply output (roots |> Seq.cast<IResource>)
+    let! success = Commands.apply output (roots |> Seq.map _.Resource)
     return success, output.ToString()
 }
 
@@ -47,9 +47,9 @@ let private requireConcurrency (setHook: FakeResource -> (unit -> Async<unit>) -
 [<Fact>]
 let ``Check of an applied root checks its dependencies``(): Task = task {
     let log = EventLog()
-    let r, d, e = FakeResource("R", log), FakeResource("D", log), FakeResource("E", log)
-    r.DependOn d
-    d.DependOn e
+    let e = FakeResource("E", log)
+    let d = FakeResource("D", log, e)
+    let r = FakeResource("R", log, d)
     r.IsApplied <- true
     d.IsApplied <- true
     e.IsApplied <- true
@@ -66,8 +66,8 @@ let ``Check of an applied root checks its dependencies``(): Task = task {
 [<Fact>]
 let ``Check reports a non-applied dependency of an applied root``(): Task = task {
     let log = EventLog()
-    let r, d = FakeResource("R", log), FakeResource("D", log)
-    r.DependOn d
+    let d = FakeResource("D", log)
+    let r = FakeResource("R", log, d)
     r.IsApplied <- true
 
     let! status, output = runCheck [ r ]
@@ -81,9 +81,9 @@ let ``Check reports a non-applied dependency of an applied root``(): Task = task
 [<Fact>]
 let ``Check of a non-applied root checks all its dependencies``(): Task = task {
     let log = EventLog()
-    let r, d, e, f = FakeResource("R", log), FakeResource("D", log), FakeResource("E", log), FakeResource("F", log)
-    r.DependOn(d, e)
-    d.DependOn f
+    let f, e = FakeResource("F", log), FakeResource("E", log)
+    let d = FakeResource("D", log, f)
+    let r = FakeResource("R", log, d, e)
     e.IsApplied <- true
 
     let! status, output = runCheck [ r ]
@@ -97,9 +97,9 @@ let ``Check of a non-applied root checks all its dependencies``(): Task = task {
 [<Fact>]
 let ``Checks of dependent resources run in parallel``(): Task = task {
     let log = EventLog()
-    let r, d, e = FakeResource("R", log), FakeResource("D", log), FakeResource("E", log)
-    r.DependOn d
-    d.DependOn e
+    let e = FakeResource("E", log)
+    let d = FakeResource("D", log, e)
+    let r = FakeResource("R", log, d)
     let started = requireConcurrency (fun r hook -> r.OnCheck <- hook) [ r; d; e ]
 
     let! status, output = runCheck [ r ]
@@ -111,8 +111,8 @@ let ``Checks of dependent resources run in parallel``(): Task = task {
 [<Fact>]
 let ``Check error is reported and does not prevent other checks``(): Task = task {
     let log = EventLog()
-    let r, d = FakeResource("R", log), FakeResource("D", log)
-    r.DependOn d
+    let d = FakeResource("D", log)
+    let r = FakeResource("R", log, d)
     r.CheckError <- Some(Exception "Check failure")
 
     let! status, output = runCheck [ r ]
@@ -127,8 +127,8 @@ let ``Check error is reported and does not prevent other checks``(): Task = task
 [<Fact>]
 let ``Check error in a dependency is reported``(): Task = task {
     let log = EventLog()
-    let r, d = FakeResource("R", log), FakeResource("D", log)
-    r.DependOn d
+    let d = FakeResource("D", log)
+    let r = FakeResource("R", log, d)
     r.IsApplied <- true
     d.CheckError <- Some(Exception "Check failure")
 
@@ -144,24 +144,10 @@ let ``Check of no resources succeeds``(): Task = task {
 }
 
 [<Fact>]
-let ``Check reports a dependency cycle``(): Task = task {
-    let log = EventLog()
-    let r, d = FakeResource("R", log), FakeResource("D", log)
-    r.DependOn d
-    d.DependOn r
-
-    let! status, output = runCheck [ r ]
-
-    Assert.Equal(CheckError, status)
-    Assert.Empty log.Events
-    Assert.Contains("Dependency cycle detected: R → D → R.", output)
-}
-
-[<Fact>]
 let ``Apply of fully applied resources only checks them``(): Task = task {
     let log = EventLog()
-    let r, d = FakeResource("R", log), FakeResource("D", log)
-    r.DependOn d
+    let d = FakeResource("D", log)
+    let r = FakeResource("R", log, d)
     r.IsApplied <- true
     d.IsApplied <- true
 
@@ -176,8 +162,8 @@ let ``Apply of fully applied resources only checks them``(): Task = task {
 [<Fact>]
 let ``Apply applies a non-applied dependency of an applied root``(): Task = task {
     let log = EventLog()
-    let r, d = FakeResource("R", log), FakeResource("D", log)
-    r.DependOn d
+    let d = FakeResource("D", log)
+    let r = FakeResource("R", log, d)
     r.IsApplied <- true
 
     let! success, output = runApply [ r ]
@@ -190,9 +176,9 @@ let ``Apply applies a non-applied dependency of an applied root``(): Task = task
 [<Fact>]
 let ``Apply applies dependencies before dependents``(): Task = task {
     let log = EventLog()
-    let r, d, e = FakeResource("R", log), FakeResource("D", log), FakeResource("E", log)
-    r.DependOn d
-    d.DependOn e
+    let e = FakeResource("E", log)
+    let d = FakeResource("D", log, e)
+    let r = FakeResource("R", log, d)
 
     let! success, output = runApply [ r ]
 
@@ -207,9 +193,9 @@ let ``Apply applies dependencies before dependents``(): Task = task {
 [<Fact>]
 let ``Apply skips applied dependencies but still applies their dependencies``(): Task = task {
     let log = EventLog()
-    let r, d, e = FakeResource("R", log), FakeResource("D", log), FakeResource("E", log)
-    r.DependOn d
-    d.DependOn e
+    let e = FakeResource("E", log)
+    let d = FakeResource("D", log, e)
+    let r = FakeResource("R", log, d)
     d.IsApplied <- true
 
     let! success, _ = runApply [ r ]
@@ -222,8 +208,8 @@ let ``Apply skips applied dependencies but still applies their dependencies``():
 [<Fact>]
 let ``Dependency is applied only after its dependents are checked``(): Task = task {
     let log = EventLog()
-    let r, d = FakeResource("R", log), FakeResource("D", log)
-    r.DependOn d
+    let d = FakeResource("D", log)
+    let r = FakeResource("R", log, d)
     r.OnCheck <- fun () -> async {
         do! Async.Sleep 100
         log.Add "check R finished"
@@ -238,9 +224,8 @@ let ``Dependency is applied only after its dependents are checked``(): Task = ta
 [<Fact>]
 let ``Apply processes a shared dependency once``(): Task = task {
     let log = EventLog()
-    let r1, r2, d = FakeResource("R1", log), FakeResource("R2", log), FakeResource("D", log)
-    r1.DependOn d
-    r2.DependOn d
+    let d = FakeResource("D", log)
+    let r1, r2 = FakeResource("R1", log, d), FakeResource("R2", log, d)
 
     let! success, _ = runApply [ r1; r2 ]
 
@@ -253,8 +238,8 @@ let ``Apply processes a shared dependency once``(): Task = task {
 [<Fact>]
 let ``Apply processes a root that is also a dependency once``(): Task = task {
     let log = EventLog()
-    let r, d = FakeResource("R", log), FakeResource("D", log)
-    r.DependOn d
+    let d = FakeResource("D", log)
+    let r = FakeResource("R", log, d)
 
     let! success, _ = runApply [ r; d ]
 
@@ -266,8 +251,8 @@ let ``Apply processes a root that is also a dependency once``(): Task = task {
 [<Fact>]
 let ``Failed dependency blocks its dependents but not the independent resources``(): Task = task {
     let log = EventLog()
-    let r, d, independent = FakeResource("R", log), FakeResource("D", log), FakeResource("Independent", log)
-    r.DependOn d
+    let d, independent = FakeResource("D", log), FakeResource("Independent", log)
+    let r = FakeResource("R", log, d)
     d.ApplyError <- Some(Exception "Apply failure")
 
     let! success, output = runApply [ r; independent ]
@@ -283,8 +268,8 @@ let ``Failed dependency blocks its dependents but not the independent resources`
 [<Fact>]
 let ``Dependency check error blocks the dependent application``(): Task = task {
     let log = EventLog()
-    let r, d = FakeResource("R", log), FakeResource("D", log)
-    r.DependOn d
+    let d = FakeResource("D", log)
+    let r = FakeResource("R", log, d)
     d.CheckError <- Some(Exception "Check failure")
 
     let! success, output = runApply [ r ]
@@ -297,8 +282,8 @@ let ``Dependency check error blocks the dependent application``(): Task = task {
 [<Fact>]
 let ``Root check error fails the application but dependencies are still applied``(): Task = task {
     let log = EventLog()
-    let r, d = FakeResource("R", log), FakeResource("D", log)
-    r.DependOn d
+    let d = FakeResource("D", log)
+    let r = FakeResource("R", log, d)
     r.CheckError <- Some(Exception "Check failure")
 
     let! success, output = runApply [ r ]
@@ -306,19 +291,6 @@ let ``Root check error fails the application but dependencies are still applied`
     Assert.False success
     assertEvents [ "check R"; "check D"; "apply D" ] log
     Assert.DoesNotContain("skipped", output)
-}
-
-[<Fact>]
-let ``Apply reports a dependency cycle``(): Task = task {
-    let log = EventLog()
-    let r = FakeResource("R", log)
-    r.DependOn r
-
-    let! success, output = runApply [ r ]
-
-    Assert.False success
-    Assert.Empty log.Events
-    Assert.Contains("Dependency cycle detected: R → R.", output)
 }
 
 [<Fact>]

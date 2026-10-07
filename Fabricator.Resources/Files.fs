@@ -46,42 +46,43 @@ let private getContent source =
 let private arraysEqual (a: 'a[]) (b: 'a[]) =
     ReadOnlySpan(a).SequenceEqual(ReadOnlySpan(b))
 
-type FileResource(source: FileSource, targetAbsolutePath: string) =
-    interface IResource with
-        member _.DependsOn = Resource.NoDependencies
-        member _.PresentableName = resourceName source
-        member _.AlreadyApplied() = async {
+let file(source: FileSource, targetAbsolutePath: string): Resource =
+    {
+        PresentableName = resourceName source
+        DependsOn = Resource.NoDependencies
+        AlreadyApplied = fun () -> async {
             if not(File.Exists targetAbsolutePath) then return false else
             let! ct = Async.CancellationToken
             let! existingContent = Async.AwaitTask <| File.ReadAllBytesAsync(targetAbsolutePath, ct)
             let! actualContent = getContent source
             return arraysEqual existingContent actualContent
         }
-        member _.Apply() = async {
+        Apply = fun () -> async {
             let! content = getContent source
             do! writeAllBytesAsync targetAbsolutePath content
         }
+    }
 
-let createDirectory(path: AbsolutePath): IResource =
-    { new IResource with
-        member _.DependsOn = Resource.NoDependencies
-        member this.PresentableName = $"Directory \"{path.Value}\""
-        member this.AlreadyApplied() = async {
+let createDirectory(path: AbsolutePath): Resource =
+    {
+        PresentableName = $"Directory \"{path.Value}\""
+        DependsOn = Resource.NoDependencies
+        AlreadyApplied = fun () -> async {
             return path.ExistsDirectory()
         }
-        member this.Apply() = async {
+        Apply = fun () -> async {
             path.CreateDirectory()
         }
     }
 
-let ensureFileExists(path: AbsolutePath): IResource =
-    { new IResource with
-        member _.DependsOn = Resource.NoDependencies
-        member this.PresentableName = $"File \"{path.Value}\""
-        member this.AlreadyApplied() = async {
+let ensureFileExists(path: AbsolutePath): Resource =
+    {
+        PresentableName = $"File \"{path.Value}\""
+        DependsOn = Resource.NoDependencies
+        AlreadyApplied = fun () -> async {
             return false
         }
-        member this.Apply() = async {
+        Apply = fun () -> async {
             if path.ReadKind() <> Nullable FileEntryKind.File then
                 failwithf $"File \"{path}\" does not exist."
         }

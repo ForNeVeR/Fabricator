@@ -10,16 +10,16 @@ open Fabricator.Tests.FakeResource
 open Xunit
 
 [<Fact>]
-let ``dependsOn delegates to the wrapped resource``(): Task = task {
+let ``dependsOn keeps the behavior of the original resource``(): Task = task {
     let log = EventLog()
     let inner = FakeResource("Inner", log)
-    let wrapped = inner |> Resource.dependsOn []
+    let copy = inner.Resource |> Resource.dependsOn []
 
-    Assert.Equal("Inner", wrapped.PresentableName)
-    let! applied = wrapped.AlreadyApplied()
+    Assert.Equal("Inner", copy.PresentableName)
+    let! applied = copy.AlreadyApplied()
     Assert.False applied
-    do! wrapped.Apply()
-    let! applied = wrapped.AlreadyApplied()
+    do! copy.Apply()
+    let! applied = copy.AlreadyApplied()
     Assert.True applied
     Assert.Equal<string list>([ "check Inner"; "apply Inner"; "check Inner" ], log.Events)
 }
@@ -27,24 +27,20 @@ let ``dependsOn delegates to the wrapped resource``(): Task = task {
 [<Fact>]
 let ``dependsOn combines own and additional dependencies``(): unit =
     let log = EventLog()
-    let inner, own, additional = FakeResource("Inner", log), FakeResource("Own", log), FakeResource("Additional", log)
-    inner.DependOn own
+    let own, additional = FakeResource("Own", log), FakeResource("Additional", log)
+    let inner = FakeResource("Inner", log, own)
 
-    let wrapped = inner |> Resource.dependsOn [ additional ]
+    let copy = inner.Resource |> Resource.dependsOn [ additional.Resource ]
 
-    Assert.Equal(2, wrapped.DependsOn.Count)
-    Assert.True(wrapped.DependsOn.Contains own)
-    Assert.True(wrapped.DependsOn.Contains additional)
+    Assert.Equal(2, copy.DependsOn.Count)
+    Assert.True(copy.DependsOn.Contains own.Resource)
+    Assert.True(copy.DependsOn.Contains additional.Resource)
 
 [<Fact>]
-let ``dependsOn reflects later changes of the wrapped resource dependencies``(): unit =
-    let log = EventLog()
-    let inner, own = FakeResource("Inner", log), FakeResource("Own", log)
-    let wrapped = inner |> Resource.dependsOn []
-
-    inner.DependOn own
-
-    Assert.True(wrapped.DependsOn.Contains own)
+let ``dependsOn creates a separate resource``(): unit =
+    let inner = FakeResource("Inner", EventLog())
+    let copy = inner.Resource |> Resource.dependsOn []
+    Assert.NotEqual(inner.Resource, copy)
 
 [<Fact>]
 let ``NoDependencies is empty``(): unit =

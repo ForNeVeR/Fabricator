@@ -14,7 +14,7 @@ open Fabricator.Core
 open Fabricator.Resources.Files
 
 let fileFromSource s =
-    FileResource(s, Path.GetTempFileName()) :> IResource
+    file(s, Path.GetTempFileName())
 
 [<Fact>]
 let ``PresentableName for ContentFile``(): unit =
@@ -38,7 +38,7 @@ let private testAlreadyApplied (sourceContent: byte[]) (targetContent: byte[]) =
     do! File.WriteAllBytesAsync(sourcePath, sourceContent)
     do! File.WriteAllBytesAsync(targetPath, targetContent)
 
-    let resource = FileResource(AbsoluteFile sourcePath, targetPath) :> IResource
+    let resource = file(AbsoluteFile sourcePath, targetPath)
     return! resource.AlreadyApplied()
 }
 
@@ -59,7 +59,7 @@ let ``AlreadyApplied returns true when applied``(): Task = upcast task {
 let ``Apply should create target file``(): Task = upcast task {
     let bytes = [|0uy; 1uy; 2uy|]
     let targetFile = Path.GetTempFileName()
-    let resource = FileResource(GeneratedContent("content", fun() -> bytes), targetFile) :> IResource
+    let resource = file(GeneratedContent("content", fun() -> bytes), targetFile)
 
     Assert.Equal(0L, FileInfo(targetFile).Length)
     do! resource.Apply()

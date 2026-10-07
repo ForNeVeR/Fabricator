@@ -7,17 +7,17 @@ namespace Fabricator.Resources
 open Fabricator.Core
 
 type WindowsServices =
-    static member createWindowsService(name: string, account: string, commandLine: string): IResource =
-        { new IResource with
-            member _.DependsOn = Resource.NoDependencies
-            member this.PresentableName = $"Service \"{name}\""
-            member this.AlreadyApplied() = async {
+    static member createWindowsService(name: string, account: string, commandLine: string): Resource =
+        {
+            PresentableName = $"Service \"{name}\""
+            DependsOn = Resource.NoDependencies
+            AlreadyApplied = fun () -> async {
                 return
                     match WindowsServiceManager.GetService name with
                     | None -> false
                     | Some service -> service.AccountName = account && service.CommandLine = commandLine
             }
-            member this.Apply() = async {
+            Apply = fun () -> async {
                 match WindowsServiceManager.GetService name with
                 | None -> ()
                 | Some _ ->

@@ -12,10 +12,6 @@ open Fabricator.Core
 
 let private name(t: LoweredTask) = t.Resource.PresentableName
 
-let private reportCycle (output: TextWriter) (cycle: IResource seq) =
-    let path = cycle |> Seq.map _.PresentableName |> String.concat " → "
-    output.WriteLine $"Dependency cycle detected: {path}."
-
 let private execute (output: TextWriter) (graph: TaskExecutor.TaskGraph<LoweredTask>)
                     : Task<IReadOnlyDictionary<LoweredTask, TaskOutcome>> =
     let onStarted(t: LoweredTask) =
@@ -46,30 +42,22 @@ let private isError = function
 
 /// Applies the resources and their dependencies that are not applied yet. Returns whether all the required actions
 /// were successful.
-let apply (output: TextWriter) (resources: IResource seq): Task<bool> = task {
+let apply (output: TextWriter) (resources: Resource seq): Task<bool> = task {
     output.WriteLine "Applying changes to the current environment."
-    match Lowering.lower CheckAndApply resources with
-    | Error cycle ->
-        reportCycle output cycle
-        return false
-    | Ok graph ->
-        let! results = execute (TextWriter.Synchronized output) graph
-        return results.Values |> Seq.forall (function Errored _ | Blocked -> false | _ -> true)
+    let graph = Lowering.lower CheckAndApply resources
+    let! results = execute (TextWriter.Synchronized output) graph
+    return results.Values |> Seq.forall (function Errored _ | Blocked -> false | _ -> true)
 }
 
 type CheckStatus = AllApplied | NotAllApplied | CheckError
 
 /// Checks the resources and all their dependencies.
-let check (output: TextWriter) (resources: IResource seq): Task<CheckStatus> = task {
+let check (output: TextWriter) (resources: Resource seq): Task<CheckStatus> = task {
     output.WriteLine "Checking the current environment."
-    match Lowering.lower CheckOnly resources with
-    | Error cycle ->
-        reportCycle output cycle
-        return CheckError
-    | Ok graph ->
-        let! results = execute (TextWriter.Synchronized output) graph
-        return
-            if results.Values |> Seq.exists isError then CheckError
-            elif results.Values |> Seq.contains CheckFailed then NotAllApplied
-            else AllApplied
+    let graph = Lowering.lower CheckOnly resources
+    let! results = execute (TextWriter.Synchronized output) graph
+    return
+        if results.Values |> Seq.exists isError then CheckError
+        elif results.Values |> Seq.contains CheckFailed then NotAllApplied
+        else AllApplied
 }

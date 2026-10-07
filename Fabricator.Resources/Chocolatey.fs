@@ -38,19 +38,18 @@ let private upgradePackage name version =
 /// <param name="name">The name of the Chocolatey package to manage.</param>
 /// <param name="version">The version of the Chocolatey package to ensure is installed.</param>
 /// <returns>
-/// An implementation of the <see cref="T:Fabricator.Core.IResource"/> interface, which provides methods
-/// to check the state of the resource and apply necessary changes.
+/// A <see cref="T:Fabricator.Core.Resource"/> checking the state of the package and applying necessary changes.
 /// </returns>
-let chocolateyPackage(name: string, version: string): IResource =
-    { new IResource with
-        member _.DependsOn = Resource.NoDependencies
-        member this.PresentableName = $"Package {name}"
+let chocolateyPackage(name: string, version: string): Resource =
+    {
+        PresentableName = $"Package {name}"
+        DependsOn = Resource.NoDependencies
 
-        member this.AlreadyApplied() = async {
+        AlreadyApplied = fun () -> async {
             let! installedVersion = getInstalledPackageVersion name
             return installedVersion = Some version
         }
-        member this.Apply() = async {
+        Apply = fun () -> async {
             let! installedVersion = getInstalledPackageVersion name
             return!
                 match installedVersion with

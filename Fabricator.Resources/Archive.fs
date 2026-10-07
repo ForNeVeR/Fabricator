@@ -17,12 +17,12 @@ let unpackArchive(
     archive: AbsolutePath,
     hash: Sha256Hash,
     destinationDirectory: AbsolutePath
-): IResource =
+): Resource =
     let outputHashFile = destinationDirectory / "fabricator-hash.txt"
-    { new IResource with
-        member _.DependsOn = Resource.NoDependencies
-        member this.PresentableName = $"Unpack archive \"{archive}\" to \"{destinationDirectory.Value}\""
-        member this.AlreadyApplied() = async {
+    {
+        PresentableName = $"Unpack archive \"{archive}\" to \"{destinationDirectory.Value}\""
+        DependsOn = Resource.NoDependencies
+        AlreadyApplied = fun () -> async {
             if not(outputHashFile.Exists()) then return false
             else
 
@@ -30,7 +30,7 @@ let unpackArchive(
             let existingHash = Sha256(content.Trim())
             return hash = existingHash
         }
-        member this.Apply() = async {
+        Apply = fun () -> async {
             if not(archive.Exists()) then failwithf $"Archive file \"{archive.Value}\" does not exist."
             let! hash = Sha256Hash.OfFile archive
             unpackAllFiles(archive, destinationDirectory)

@@ -12,15 +12,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 ### Changed
-- **(Breaking change!)** `IResource` has a new member, `DependsOn: IReadOnlySet<IResource>`, declaring the resources this one depends on. All `IResource` implementations have to provide it (use `Resource.NoDependencies` for resources without dependencies).
+- **(Breaking change!)** The `IResource` interface is replaced with the `Resource` record. Resources are compared by reference: the same resource object is processed at most once, while different resource objects are always processed separately. A resource declares the resources it depends on via `DependsOn` (use `Resource.NoDependencies` for resources without dependencies).
+- **(Breaking change!)** The `Files.FileResource` class is replaced with the `Files.file` function.
 - **(Breaking change!)** Resources are now checked and applied in parallel. The order of the resources passed to `EntryPoint.main` no longer defines the order of their processing; use `DependsOn` to declare which resources have to be applied before others.
 - **(Breaking change!)** `check` now reports that not all resources are applied (exit code 3) if any of the dependencies is not applied, even if the root resources are.
 - **(Breaking change!)** If a resource fails to be checked or applied during `apply`, the resources depending on it are skipped, while independent resources continue to be processed (previously, the processing stopped on the first failure).
 
 ### Added
-- `Resource.dependsOn` function to add dependencies to any resource, including the bundled ones.
+- `Resource.dependsOn` function to create a copy of any resource, including the bundled ones, with additional dependencies.
 - `Resource.NoDependencies` for resources without dependencies.
-- Dependency cycles are detected and reported before any resource is processed.
 
 ### Fixed
 - The `check` command now reports "Checking the current environment." instead of "Applying changes to the current environment." in the beginning.

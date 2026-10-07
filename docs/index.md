@@ -15,7 +15,7 @@ PowerShell's [Desired State Configuration][powershell-dsc] in concept.
 
 Core Concepts
 -------------
-The main core concept in Fabricator is a [_resource_][iresource].
+The main core concept in Fabricator is a [_resource_][resource].
 
 Every entity controlled by Fabricator is a _resource_. A _resource_ knows a target state, knows how to check if the system corresponds to this state, and how to transform the system to this target state.
 
@@ -33,6 +33,6 @@ Packages
 
 [console]: xref:Fabricator.Console
 [core]: xref:Fabricator.Core
-[iresource]: xref:Fabricator.Core.IResource
 [powershell-dsc]: https://docs.microsoft.com/en-us/powershell/scripting/dsc/getting-started/wingettingstarted
+[resource]: xref:Fabricator.Core.Resource
 [resources]: xref:Fabricator.Resources

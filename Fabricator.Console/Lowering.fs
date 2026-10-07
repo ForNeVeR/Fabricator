@@ -24,7 +24,7 @@ type TaskKind =
 type LoweredTask =
     {
         Kind: TaskKind
-        Resource: IResource
+        Resource: Resource
     }
     override this.ToString() = $"{this.Kind} {this.Resource.PresentableName}"
 
@@ -44,9 +44,9 @@ type TaskOutcome =
     | Blocked
 
 /// Collects all the resources reachable from the roots (including the roots themselves).
-let private collectAll(roots: IResource seq): HashSet<IResource> =
-    let visited = HashSet<IResource>()
-    let rec walk(resource: IResource) =
+let private collectAll(roots: Resource seq): HashSet<Resource> =
+    let visited = HashSet<Resource>()
+    let rec walk(resource: Resource) =
         if visited.Add resource then
             for dependency in resource.DependsOn do
                 walk dependency
@@ -54,58 +54,36 @@ let private collectAll(roots: IResource seq): HashSet<IResource> =
         walk root
     visited
 
-/// <summary>Finds a dependency cycle in the resource graph reachable from <paramref name="roots"/>.</summary>
-/// <param name="roots">The roots of the resource graph.</param>
-/// <returns>
-/// The resources forming the cycle, with the first resource repeated in the end (e.g. <c>[A; B; A]</c>); or
-/// <c>None</c> if there are no cycles.
-/// </returns>
-let findCycle(roots: IResource seq): IResource[] option =
-    let finished = HashSet<IResource>()
-    let onPath = HashSet<IResource>()
-    let path = Stack<IResource>()
-
-    let rec visit(resource: IResource): IResource[] option =
-        if finished.Contains resource then None
-        elif onPath.Contains resource then
-            let cycleTail =
-                path
-                |> Seq.takeWhile (fun r -> r <> resource) // Stack enumerates from the top
-                |> Seq.rev
-            let cycle = seq {
-                yield resource
-                yield! cycleTail
-                yield resource
-            }
-
-            Some(cycle |> Seq.toArray)
-        else
-            onPath.Add resource |> ignore
-            path.Push resource
-            let result = resource.DependsOn |> Seq.tryPick visit
-            path.Pop() |> ignore
-            onPath.Remove resource |> ignore
-            finished.Add resource |> ignore
-            result
-
-    roots |> Seq.tryPick visit
-
 /// Collects all the resources depending on the passed one, directly or transitively.
-let private collectDependents (dependents: Dictionary<IResource, ResizeArray<IResource>>) (resource: IResource) =
-    let visited = HashSet<IResource>()
-    let rec walk(r: IResource) =
+let private collectDependents (dependents: Dictionary<Resource, ResizeArray<Resource>>) (resource: Resource) =
+    let visited = HashSet<Resource>()
+    let rec walk(r: Resource) =
         for dependent in dependents[r] do
             if visited.Add dependent then
                 walk dependent
     walk resource
     visited
 
-let private buildGraph (mode: ExecutionMode) (roots: IResource[]): TaskExecutor.TaskGraph<LoweredTask> =
+/// <summary>
+/// Converts the resource graph reachable from <paramref name="roots"/> to a graph of lowered tasks.
+/// </summary>
+/// <param name="mode">The execution mode.</param>
+/// <param name="roots">The roots of the resource graph.</param>
+/// <remarks>
+/// <para>For each resource (including the transitive dependencies of the roots), a check task is created. Checks are
+/// independent of each other, so the check tasks have no prerequisites.</para>
+/// <para>In <see cref="F:Fabricator.Console.Lowering.ExecutionMode.CheckAndApply"/> mode, for each resource an apply
+/// task is also created. Its prerequisites are the check task of the same resource, the apply tasks of all the
+/// resource's dependencies, and the check tasks of all the resources depending on it (directly or transitively): this
+/// way, a resource is never changed while a resource depending on it is still being checked.</para>
+/// </remarks>
+/// <returns>The lowered graph.</returns>
+let lower (mode: ExecutionMode) (roots: Resource seq): TaskExecutor.TaskGraph<LoweredTask> =
     let check r = { Kind = Check; Resource = r }
     let apply r = { Kind = Apply; Resource = r }
 
     let allResources = collectAll roots
-    let dependents = Dictionary<IResource, ResizeArray<IResource>>()
+    let dependents = Dictionary<Resource, ResizeArray<Resource>>()
     for resource in allResources do
         dependents[resource] <- ResizeArray()
     for resource in allResources do
@@ -128,31 +106,11 @@ let private buildGraph (mode: ExecutionMode) (roots: IResource[]): TaskExecutor.
 
     tasks
 
-/// <summary>
-/// Converts the resource graph reachable from <paramref name="roots"/> to a graph of lowered tasks.
-/// </summary>
-/// <param name="mode">The execution mode.</param>
-/// <param name="roots">The roots of the resource graph.</param>
-/// <remarks>
-/// <para>For each resource (including the transitive dependencies of the roots), a check task is created. Checks are
-/// independent of each other, so the check tasks have no prerequisites.</para>
-/// <para>In <see cref="F:Fabricator.Console.Lowering.ExecutionMode.CheckAndApply"/> mode, for each resource an apply
-/// task is also created. Its prerequisites are the check task of the same resource, the apply tasks of all the
-/// resource's dependencies, and the check tasks of all the resources depending on it (directly or transitively): this
-/// way, a resource is never changed while a resource depending on it is still being checked.</para>
-/// </remarks>
-/// <returns>The lowered graph, or an error containing a dependency cycle in the resource graph.</returns>
-let lower (mode: ExecutionMode) (roots: IResource seq): Result<TaskExecutor.TaskGraph<LoweredTask>, IResource[]> =
-    let roots = Seq.toArray roots
-    match findCycle roots with
-    | Some cycle -> Error cycle
-    | None -> Ok(buildGraph mode roots)
-
 let private isFailure = function
     | Errored _ | Blocked -> true
     | CheckPassed | CheckFailed | Applied | NotRequired -> false
 
-let private runCheck(resource: IResource): Task<TaskOutcome> = task {
+let private runCheck(resource: Resource): Task<TaskOutcome> = task {
     try
         let! applied = Async.StartAsTask(resource.AlreadyApplied())
         return if applied then CheckPassed else CheckFailed
@@ -160,7 +118,7 @@ let private runCheck(resource: IResource): Task<TaskOutcome> = task {
     | ex -> return Errored ex
 }
 
-let private runApply(resource: IResource): Task<TaskOutcome> = task {
+let private runApply(resource: Resource): Task<TaskOutcome> = task {
     try
         do! Async.StartAsTask(resource.Apply())
         return Applied

@@ -4,8 +4,9 @@
 
 module Fabricator.Tests.FakeResource
 
+open System
 open System.Collections.Concurrent
-open System.Collections.Generic
+open System.Collections.Immutable
 open Fabricator.Core
 
 /// A thread-safe log of the events happening to fake resources.
@@ -16,8 +17,25 @@ type EventLog() =
     member this.IndexOf(event: string): int = List.findIndex ((=) event) this.Events
 
 /// A resource recording its checks and applications to the log.
-type FakeResource(name: string, log: EventLog) =
-    let dependencies = HashSet<IResource>()
+type FakeResource(name: string, log: EventLog, [<ParamArray>] dependencies: FakeResource[]) as this =
+    let resource = {
+        PresentableName = name
+        DependsOn = ImmutableHashSet.CreateRange(dependencies |> Seq.map (fun (d: FakeResource) -> d.Resource))
+        AlreadyApplied = fun () -> async {
+            log.Add $"check {name}"
+            do! this.OnCheck()
+            match this.CheckError with
+            | Some e -> return raise e
+            | None -> return this.IsApplied
+        }
+        Apply = fun () -> async {
+            log.Add $"apply {name}"
+            do! this.OnApply()
+            match this.ApplyError with
+            | Some e -> raise e
+            | None -> this.IsApplied <- true
+        }
+    }
 
     member val IsApplied = false with get, set
     member val CheckError: exn option = None with get, set
@@ -25,24 +43,5 @@ type FakeResource(name: string, log: EventLog) =
     member val OnCheck: unit -> Async<unit> = (fun () -> async.Return()) with get, set
     member val OnApply: unit -> Async<unit> = (fun () -> async.Return()) with get, set
 
-    member this.DependOn([<System.ParamArray>] resources: IResource[]): unit =
-        for resource in resources do
-            dependencies.Add resource |> ignore
-
-    interface IResource with
-        member _.PresentableName = name
-        member this.AlreadyApplied() = async {
-            log.Add $"check {name}"
-            do! this.OnCheck()
-            match this.CheckError with
-            | Some e -> return raise e
-            | None -> return this.IsApplied
-        }
-        member this.Apply() = async {
-            log.Add $"apply {name}"
-            do! this.OnApply()
-            match this.ApplyError with
-            | Some e -> raise e
-            | None -> this.IsApplied <- true
-        }
-        member _.DependsOn = dependencies
+    /// The resource itself, always the same object for the same fake.
+    member _.Resource: Resource = resource

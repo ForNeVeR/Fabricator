@@ -25,14 +25,14 @@ let private runSynchronously(task: Task<'a>): 'a =
 
 /// <summary>Performs tasks on the passed resources according to the passed arguments.</summary>
 /// <remarks>
-/// The passed resources and all their dependencies (see <see cref="P:Fabricator.Core.IResource.DependsOn"/>) are
+/// The passed resources and all their dependencies (see <see cref="P:Fabricator.Core.Resource.DependsOn"/>) are
 /// processed. The checks are performed in parallel; the resources are applied in parallel, except that a resource is
 /// only applied after all its dependencies.
 /// </remarks>
 /// <param name="args">The command-line arguments.</param>
 /// <param name="resources">The root resources, i.e., the resources describing the desired environment state.</param>
 /// <returns>The process exit code.</returns>
-let main (args: string seq) (resources: IResource seq): int =
+let main (args: string seq) (resources: Resource seq): int =
     let args = Seq.toArray args
     let args =
         if args.Length > 0 && args[0].EndsWith ".fsx"

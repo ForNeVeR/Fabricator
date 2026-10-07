@@ -29,8 +29,8 @@ type HostsFile =
     /// <param name="host">The hostname to map to the IP address.</param>
     /// <param name="hostsFilePath">Optional path to the hosts file. Defaults to the platform-specific hosts file path:
     /// Windows: %SystemRoot%\drivers\etc\hosts (resolved dynamically), Linux/macOS: /etc/hosts</param>
-    /// <returns>An IResource for managing the host file entry.</returns>
-    static member Record(ipAddress: string, host: string, ?hostsFilePath: AbsolutePath): IResource =
+    /// <returns>A resource managing the host file entry.</returns>
+    static member Record(ipAddress: string, host: string, ?hostsFilePath: AbsolutePath): Resource =
         let filePath = defaultArg hostsFilePath HostsFile.DefaultHostsPath
 
         let removeInlineComment (line: string) =
@@ -72,11 +72,11 @@ type HostsFile =
                 ip = expectedIp && hosts |> Set.contains expectedHost
             | None -> false
 
-        { new IResource with
-            member _.DependsOn = Resource.NoDependencies
-            member this.PresentableName = $"Host file entry \"{host}\""
+        {
+            PresentableName = $"Host file entry \"{host}\""
+            DependsOn = Resource.NoDependencies
 
-            member this.AlreadyApplied() = async {
+            AlreadyApplied = fun () -> async {
                 if not (filePath.Exists()) then
                     return false
                 else
@@ -88,7 +88,7 @@ type HostsFile =
                     | None -> return false
             }
 
-            member this.Apply() = async {
+            Apply = fun () -> async {
                 let! ct = Async.CancellationToken
 
                 // Ensure the file exists
