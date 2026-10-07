@@ -7,13 +7,19 @@ namespace Fabricator.Resources
 open System.Text.Json.Nodes
 open Fabricator.Core
 open Fabricator.Resources.CommandUtil
+open Fabricator.Resources.ResourceUtil
 open TruePath
 open TruePath.SystemIo
 
 type DotNetTool =
-    static member Install(name: string, version: string, installationPath: AbsolutePath): Resource = {
+    static member Install(
+        name: string,
+        version: string,
+        installationPath: AbsolutePath,
+        ?dependsOn: Resource seq
+    ): Resource = {
             PresentableName = $"{name} {version}"
-            DependsOn = Resource.NoDependencies
+            DependsOn = dependencies dependsOn
             AlreadyApplied = fun () -> async {
                 if not <| installationPath.ExistsDirectory() then return false else
                 let! execResult =

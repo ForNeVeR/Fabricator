@@ -5,12 +5,18 @@
 namespace Fabricator.Resources
 
 open Fabricator.Core
+open Fabricator.Resources.ResourceUtil
 
 type WindowsServices =
-    static member createWindowsService(name: string, account: string, commandLine: string): Resource =
+    static member createWindowsService(
+        name: string,
+        account: string,
+        commandLine: string,
+        ?dependsOn: Resource seq
+    ): Resource =
         {
             PresentableName = $"Service \"{name}\""
-            DependsOn = Resource.NoDependencies
+            DependsOn = dependencies dependsOn
             AlreadyApplied = fun () -> async {
                 return
                     match WindowsServiceManager.GetService name with

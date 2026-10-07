@@ -13,13 +13,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 ### Changed
 - **(Breaking change!)** The `IResource` interface is replaced with the `Resource` record. Resources are compared by reference: the same resource object is processed at most once, while different resource objects are always processed separately. A resource declares the resources it depends on via `DependsOn` (use `Resource.NoDependencies` for resources without dependencies).
-- **(Breaking change!)** The `Files.FileResource` class is replaced with the `Files.file` function.
+- **(Breaking change!)** The bundled resource factories from the `Archive`, `Chocolatey`, `Downloads`, `Files` and `WindowsCertificates` modules are now static members of the types with the same names (use `open type` instead of `open`, e.g. `open type Fabricator.Resources.Files`). `FileSource`, `CertificateStoreLocation` and `CertificateStores` are moved to the `Fabricator.Resources` namespace.
+- **(Breaking change!)** The `Files.FileResource` class is replaced with the `Files.file` method.
+- **(Breaking change!)** `WindowsCertificates.trustedCertificate` now takes tupled arguments instead of curried ones.
 - **(Breaking change!)** Resources are now checked and applied in parallel. The order of the resources passed to `EntryPoint.main` no longer defines the order of their processing; use `DependsOn` to declare which resources have to be applied before others.
 - **(Breaking change!)** `check` now reports that not all resources are applied (exit code 3) if any of the dependencies is not applied, even if the root resources are.
 - **(Breaking change!)** If a resource fails to be checked or applied during `apply`, the resources depending on it are skipped, while independent resources continue to be processed (previously, the processing stopped on the first failure).
 
 ### Added
-- `Resource.dependsOn` function to create a copy of any resource, including the bundled ones, with additional dependencies.
+- All the bundled resources accept an optional `dependsOn` parameter to declare their dependencies.
 - `Resource.NoDependencies` for resources without dependencies.
 
 ### Fixed

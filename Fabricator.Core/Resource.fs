@@ -69,16 +69,3 @@ module Resource =
 
     /// An empty dependency set, to be used for resources without dependencies.
     let NoDependencies: ImmutableHashSet<Resource> = ImmutableHashSet<Resource>.Empty
-
-    /// <summary>
-    /// Creates a copy of <paramref name="resource"/> that additionally depends on <paramref name="dependencies"/> (on
-    /// top of the resource's own <see cref="P:Fabricator.Core.Resource.DependsOn"/>).
-    /// </summary>
-    /// <remarks>
-    /// The result is a separate resource that is not equal to <paramref name="resource"/>: if both the original and the
-    /// copy are used in the same dependency graph, they will be checked and applied independently.
-    /// </remarks>
-    /// <param name="dependencies">Additional dependencies of the resource.</param>
-    /// <param name="resource">The resource to copy.</param>
-    let dependsOn (dependencies: Resource seq) (resource: Resource): Resource =
-        { resource with DependsOn = resource.DependsOn.Union dependencies }

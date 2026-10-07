@@ -40,10 +40,9 @@ Quick script example:
 open System
 open System.IO
 open Fabricator.Console
-open Fabricator.Core
-open Fabricator.Resources.Archive
-open Fabricator.Resources.Downloads
-open Fabricator.Resources.Files
+open type Fabricator.Resources.Archive
+open type Fabricator.Resources.Downloads
+open type Fabricator.Resources.Files
 open Fabricator.Resources.Hash
 open TruePath
 
@@ -58,9 +57,8 @@ let shawlExecutable = AbsolutePath @"C:\Programs\shawl\shawl.exe"
 
 let downloadShawl = downloadFile(shawlUrl, shawlHash, shawlDownloadCache)
 let unpackShawl =
-    unpackArchive(shawlDownloadCache, shawlHash, shawlExecutable.Parent.Value)
-    |> Resource.dependsOn [ downloadShawl ]
-let installShawl = ensureFileExists shawlExecutable |> Resource.dependsOn [ unpackShawl ]
+    unpackArchive(shawlDownloadCache, shawlHash, shawlExecutable.Parent.Value, dependsOn = [ downloadShawl ])
+let installShawl = ensureFileExists(shawlExecutable, dependsOn = [ unpackShawl ])
 
 let resources = [
     installShawl
@@ -71,7 +69,7 @@ exit <| EntryPoint.main fsi.CommandLineArgs resources
 
 This script will make sure there's an executable `C:\Programs\shawl\shawl.exe` downloaded from the specified URL. This executable might then be used for other resources' setup, e.g., for the [Windows service resource][docs.windows-service].
 
-Resources passed to `EntryPoint.main` are processed in parallel, and their order doesn't matter. If a resource requires another one to be applied first, declare that via `Resource.DependsOn` (e.g., using `Resource.dependsOn` as in the example above). A resource's dependencies don't have to be passed to `EntryPoint.main` explicitly: they are always checked and, if required, applied before the resource itself.
+Resources passed to `EntryPoint.main` are processed in parallel, and their order doesn't matter. If a resource requires another one to be applied first, declare that via `Resource.DependsOn` (e.g., using the `dependsOn` parameter of the bundled resources as in the example above). A resource's dependencies don't have to be passed to `EntryPoint.main` explicitly: they are always checked and, if required, applied before the resource itself.
 
 Prerequisites
 -------------

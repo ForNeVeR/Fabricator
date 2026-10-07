@@ -11,7 +11,8 @@ open FSharp.Control.Tasks
 open Xunit
 
 open Fabricator.Core
-open Fabricator.Resources.Files
+open Fabricator.Resources
+open type Fabricator.Resources.Files
 
 let fileFromSource s =
     file(s, Path.GetTempFileName())

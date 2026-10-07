@@ -2,10 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-module Fabricator.Resources.WindowsCertificates
+namespace Fabricator.Resources
 
 open System.Security.Cryptography.X509Certificates
 open Fabricator.Core
+open Fabricator.Resources.ResourceUtil
 open TruePath
 open TruePath.SystemIo
 
@@ -59,59 +60,65 @@ module CertificateStores =
         StoreName = StoreName.My
     }
 
-let private getCertificateFromFile (path: AbsolutePath) =
-    if not(path.Exists()) then
-        failwithf $"Certificate file does not exist: {path.Value}"
-    X509CertificateLoader.LoadCertificateFromFile(path.Value)
+type WindowsCertificates =
+    /// <summary>
+    /// Creates a resource that ensures a certificate is installed in the specified certificate store.
+    /// This is a pure .NET implementation equivalent to PowerShell's Import-Certificate command.
+    /// </summary>
+    /// <param name="certificatePath">The absolute path to the certificate file to install.</param>
+    /// <param name="storeLocation">The certificate store location where the certificate should be installed.</param>
+    /// <param name="dependsOn">The resources this resource depends on.</param>
+    /// <returns>
+    /// A <see cref="T:Fabricator.Core.Resource"/> checking if the certificate is already installed and installing it
+    /// if needed.
+    /// </returns>
+    /// <remarks>
+    /// This feature is Windows-only. On other platforms, certificate management varies significantly.
+    /// The resource identifies certificates by their thumbprint, so if a certificate with the same
+    /// thumbprint already exists in the store, it will be considered already applied.
+    /// </remarks>
+    /// <example>
+    /// Install a certificate to the Local Machine Root store:
+    /// <code>
+    /// let certResource = trustedCertificate(AbsolutePath @"C:\certs\mycert.cer", CertificateStores.LocalMachineTrustedRootCertificationAuthorities)
+    /// </code>
+    /// </example>
+    static member trustedCertificate(
+        certificatePath: AbsolutePath,
+        storeLocation: CertificateStoreLocation,
+        ?dependsOn: Resource seq
+    ): Resource =
+        let getCertificateFromFile (path: AbsolutePath) =
+            if not(path.Exists()) then
+                failwithf $"Certificate file does not exist: {path.Value}"
+            X509CertificateLoader.LoadCertificateFromFile(path.Value)
 
-let private isCertificateInStore (cert: X509Certificate2) (storeLocation: CertificateStoreLocation) =
-    use store = new X509Store(storeLocation.StoreName, storeLocation.Location)
-    store.Open(OpenFlags.ReadOnly)
-    let certificates = store.Certificates
-    let found = certificates.Find(X509FindType.FindByThumbprint, cert.Thumbprint, false)
-    found.Count > 0
+        let isCertificateInStore (cert: X509Certificate2) =
+            use store = new X509Store(storeLocation.StoreName, storeLocation.Location)
+            store.Open(OpenFlags.ReadOnly)
+            let certificates = store.Certificates
+            let found = certificates.Find(X509FindType.FindByThumbprint, cert.Thumbprint, false)
+            found.Count > 0
 
-let private addCertificateToStore (cert: X509Certificate2) (storeLocation: CertificateStoreLocation) =
-    use store = new X509Store(storeLocation.StoreName, storeLocation.Location)
-    store.Open(OpenFlags.ReadWrite)
-    store.Add(cert)
+        let addCertificateToStore (cert: X509Certificate2) =
+            use store = new X509Store(storeLocation.StoreName, storeLocation.Location)
+            store.Open(OpenFlags.ReadWrite)
+            store.Add(cert)
 
-/// <summary>
-/// Creates a resource that ensures a certificate is installed in the specified certificate store.
-/// This is a pure .NET implementation equivalent to PowerShell's Import-Certificate command.
-/// </summary>
-/// <param name="certificatePath">The absolute path to the certificate file to install.</param>
-/// <param name="storeLocation">The certificate store location where the certificate should be installed.</param>
-/// <returns>
-/// A <see cref="T:Fabricator.Core.Resource"/> checking if the certificate is already installed and installing it if
-/// needed.
-/// </returns>
-/// <remarks>
-/// This feature is Windows-only. On other platforms, certificate management varies significantly.
-/// The resource identifies certificates by their thumbprint, so if a certificate with the same
-/// thumbprint already exists in the store, it will be considered already applied.
-/// </remarks>
-/// <example>
-/// Install a certificate to the Local Machine Root store:
-/// <code>
-/// let certResource = trustedCertificate(AbsolutePath @"C:\certs\mycert.cer", CertificateStores.LocalMachineTrustedRootCertificationAuthorities)
-/// </code>
-/// </example>
-let trustedCertificate (certificatePath: AbsolutePath) (storeLocation: CertificateStoreLocation): Resource =
-    let cert = lazy (getCertificateFromFile certificatePath)
+        let cert = lazy (getCertificateFromFile certificatePath)
 
-    {
-        PresentableName =
-            $"Certificate \"{certificatePath.FileName}\" in {storeLocation.Location}/{storeLocation.StoreName}"
-        DependsOn = Resource.NoDependencies
+        {
+            PresentableName =
+                $"Certificate \"{certificatePath.FileName}\" in {storeLocation.Location}/{storeLocation.StoreName}"
+            DependsOn = dependencies dependsOn
 
-        AlreadyApplied = fun () -> async {
-            let certificate = cert.Value
-            return isCertificateInStore certificate storeLocation
+            AlreadyApplied = fun () -> async {
+                let certificate = cert.Value
+                return isCertificateInStore certificate
+            }
+
+            Apply = fun () -> async {
+                let certificate = cert.Value
+                addCertificateToStore certificate
+            }
         }
-
-        Apply = fun () -> async {
-            let certificate = cert.Value
-            addCertificateToStore certificate storeLocation
-        }
-    }

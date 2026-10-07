@@ -8,10 +8,9 @@ open System
 open System.IO
 
 open Fabricator.Console
-open Fabricator.Core
-open Fabricator.Resources.Archive
-open Fabricator.Resources.Downloads
-open Fabricator.Resources.Files
+open type Fabricator.Resources.Archive
+open type Fabricator.Resources.Downloads
+open type Fabricator.Resources.Files
 open Fabricator.Resources.Hash
 open type Fabricator.Resources.WindowsServices
 open TruePath
@@ -42,13 +41,11 @@ let installReadeck = downloadFile(readeckUrl, readeckHash, readeckExecutable)
 
 let installShawl =
     let download = downloadFile(shawlUrl, shawlHash, shawlDownloadCache)
-    let unpack =
-        unpackArchive(shawlDownloadCache, shawlHash, shawlExecutable.Parent.Value)
-        |> Resource.dependsOn [ download ]
-    ensureFileExists shawlExecutable |> Resource.dependsOn [ unpack ]
+    let unpack = unpackArchive(shawlDownloadCache, shawlHash, shawlExecutable.Parent.Value, dependsOn = [ download ])
+    ensureFileExists(shawlExecutable, dependsOn = [ unpack ])
 
 let readeckDataDirectory = createDirectory readeckDataDir
-let shawlLogDirectory = createDirectory shawlLogDir |> Resource.dependsOn [ readeckDataDirectory ]
+let shawlLogDirectory = createDirectory(shawlLogDir, dependsOn = [ readeckDataDirectory ])
 
 let joinCommandLine(args: string seq): string =
     args
@@ -72,9 +69,9 @@ let private readeckService =
             "--"
             readeckExecutable.Value
             "serve"
-        ]
+        ],
+        dependsOn = [ installReadeck; installShawl; shawlLogDirectory ]
     )
-    |> Resource.dependsOn [ installReadeck; installShawl; shawlLogDirectory ]
 
 let private resources = [
     readeckService

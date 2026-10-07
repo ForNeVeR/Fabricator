@@ -8,6 +8,7 @@ open System
 open System.IO
 open System.Runtime.InteropServices
 open Fabricator.Core
+open Fabricator.Resources.ResourceUtil
 open TruePath
 open TruePath.SystemIo
 
@@ -29,8 +30,14 @@ type HostsFile =
     /// <param name="host">The hostname to map to the IP address.</param>
     /// <param name="hostsFilePath">Optional path to the hosts file. Defaults to the platform-specific hosts file path:
     /// Windows: %SystemRoot%\drivers\etc\hosts (resolved dynamically), Linux/macOS: /etc/hosts</param>
+    /// <param name="dependsOn">The resources this resource depends on.</param>
     /// <returns>A resource managing the host file entry.</returns>
-    static member Record(ipAddress: string, host: string, ?hostsFilePath: AbsolutePath): Resource =
+    static member Record(
+        ipAddress: string,
+        host: string,
+        ?hostsFilePath: AbsolutePath,
+        ?dependsOn: Resource seq
+    ): Resource =
         let filePath = defaultArg hostsFilePath HostsFile.DefaultHostsPath
 
         let removeInlineComment (line: string) =
@@ -74,7 +81,7 @@ type HostsFile =
 
         {
             PresentableName = $"Host file entry \"{host}\""
-            DependsOn = Resource.NoDependencies
+            DependsOn = dependencies dependsOn
 
             AlreadyApplied = fun () -> async {
                 if not (filePath.Exists()) then
