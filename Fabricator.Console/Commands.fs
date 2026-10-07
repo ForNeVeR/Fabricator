@@ -10,17 +10,13 @@ open System.Threading.Tasks
 open Fabricator.Console.Lowering
 open Fabricator.Core
 
-type private SynchronizedOutput(output: TextWriter) =
-    let lockObj = obj()
-    member _.WriteLine(text: string) = lock lockObj (fun () -> output.WriteLine text)
-
 let private name(t: LoweredTask) = t.Resource.PresentableName
 
 let private reportCycle (output: TextWriter) (cycle: IResource seq) =
     let path = cycle |> Seq.map _.PresentableName |> String.concat " → "
     output.WriteLine $"Dependency cycle detected: {path}."
 
-let private execute (output: SynchronizedOutput) (graph: TaskExecutor.TaskGraph<LoweredTask>)
+let private execute (output: TextWriter) (graph: TaskExecutor.TaskGraph<LoweredTask>)
                     : Task<IReadOnlyDictionary<LoweredTask, TaskOutcome>> =
     let onStarted(t: LoweredTask) =
         match t.Kind with
@@ -57,7 +53,7 @@ let apply (output: TextWriter) (resources: IResource seq): Task<bool> = task {
         reportCycle output cycle
         return false
     | Ok graph ->
-        let! results = execute (SynchronizedOutput output) graph
+        let! results = execute (TextWriter.Synchronized output) graph
         return results.Values |> Seq.forall (function Errored _ | Blocked -> false | _ -> true)
 }
 
@@ -71,7 +67,7 @@ let check (output: TextWriter) (resources: IResource seq): Task<CheckStatus> = t
         reportCycle output cycle
         return CheckError
     | Ok graph ->
-        let! results = execute (SynchronizedOutput output) graph
+        let! results = execute (TextWriter.Synchronized output) graph
         return
             if results.Values |> Seq.exists isError then CheckError
             elif results.Values |> Seq.contains CheckFailed then NotAllApplied
