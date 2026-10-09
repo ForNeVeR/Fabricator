@@ -5,6 +5,7 @@
 namespace Fabricator.Resources
 
 open System
+open System.Diagnostics
 open System.Net.Http
 open Fabricator.Core
 open Fabricator.Resources.Hash
@@ -35,29 +36,54 @@ type Downloads =
             PresentableName = $"Download file from {uri} to {downloadPath}"
             DependsOn = dependencies dependsOn
             Lock = None
-            AlreadyApplied = fun () -> async {
+            AlreadyApplied = fun ctx -> async {
+                ctx.Reporter.Status "Computing hash"
                 let! downloadedHash = calcHash downloadPath
                 return downloadedHash = Some expectedHash
             }
-            Apply = fun () -> async {
+            Apply = fun ctx -> async {
+                let reporter = ctx.Reporter
+                let stopwatch = Stopwatch.StartNew()
                 downloadPath.Parent.Value.CreateDirectory()
 
                 use httpClient = new HttpClient()
                 let! ct = Async.CancellationToken
 
-                let! response = Async.AwaitTask <| httpClient.GetAsync(uri, ct)
+                reporter.Status $"Connecting to {uri.Authority}"
+                let! response =
+                    Async.AwaitTask <| httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct)
+                use response = response
                 response.EnsureSuccessStatusCode() |> ignore
 
-                let saveContent = async {
-                    use resultStream = downloadPath.OpenWrite()
-                    do! Async.AwaitTask(response.Content.CopyToAsync(resultStream, ct))
-                }
-                do! saveContent
+                let total = response.Content.Headers.ContentLength |> Option.ofNullable
+                let! downloadedBytes =
+                    reporter.WithProgress($"Downloading {downloadPath.FileName}", total, Bytes, fun progress -> async {
+                        use! input = Async.AwaitTask <| response.Content.ReadAsStreamAsync ct
+                        use output = downloadPath.OpenWrite()
+                        output.SetLength 0L
+                        let buffer = Array.zeroCreate<byte> 81920
+                        let mutable downloadedBytes = 0L
+                        let mutable finished = false
+                        while not finished do
+                            let! read = Async.AwaitTask <| input.ReadAsync(buffer, 0, buffer.Length, ct)
+                            if read = 0 then finished <- true
+                            else
+                                do! Async.AwaitTask(output.WriteAsync(buffer, 0, read, ct))
+                                downloadedBytes <- downloadedBytes + int64 read
+                                progress.Report downloadedBytes
+                        return downloadedBytes
+                    })
 
+                reporter.Status "Verifying hash"
                 let! downloadedHash = calcHash downloadPath
                 if downloadedHash <> Some expectedHash then
                     downloadPath.Delete()
                     let actualHash = downloadedHash |> Option.map string |> Option.defaultValue "None"
                     failwithf $"Hash mismatch for URL \"{uri}\":\nexpected hash {expectedHash},\nactual hash   {actualHash}."
+
+                reporter.Log(
+                    $"Downloaded {downloadedBytes} bytes from {uri} to \"{downloadPath.Value}\" " +
+                    $"in %.2f{stopwatch.Elapsed.TotalSeconds}s."
+                )
             }
         }

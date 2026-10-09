@@ -59,22 +59,34 @@ type Resource =
         /// <c>true</c> if the resource is already applied and requires no further action, <c>false</c> otherwise.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// This function should not change the environment. It may be called concurrently with checks and
         /// applications of other resources. While applying, it is only called after all the dependencies from
         /// <see cref="P:Fabricator.Core.Resource.DependsOn"/> are applied.
+        /// </para>
+        /// <para>
+        /// The passed context is pinned to this check: use its reporter to report the status, progress, and log of the
+        /// check.
+        /// </para>
         /// </remarks>
-        AlreadyApplied: unit -> Async<bool>
+        AlreadyApplied: ResourceContext -> Async<bool>
 
         /// <summary>
         /// Brings the resource to its desired state in the current environment.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// Only called after <see cref="P:Fabricator.Core.Resource.AlreadyApplied"/> returned <c>false</c>, and after
         /// all the dependencies from <see cref="P:Fabricator.Core.Resource.DependsOn"/> are applied (the ones not
         /// applied yet are applied first). May be called concurrently with checks and applications of other resources
         /// that are not connected to this one via dependencies.
+        /// </para>
+        /// <para>
+        /// The passed context is pinned to this application: use its reporter to report the status, progress, and log
+        /// of the application.
+        /// </para>
         /// </remarks>
-        Apply: unit -> Async<unit>
+        Apply: ResourceContext -> Async<unit>
 
         /// <summary>
         /// The concurrency group of the resource, or <c>None</c> if the resource can be checked and applied

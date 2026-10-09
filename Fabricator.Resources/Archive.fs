@@ -28,7 +28,7 @@ type Archive =
             PresentableName = $"Unpack archive \"{archive}\" to \"{destinationDirectory.Value}\""
             DependsOn = dependencies dependsOn
             Lock = None
-            AlreadyApplied = fun () -> async {
+            AlreadyApplied = fun _ -> async {
                 if not(outputHashFile.Exists()) then return false
                 else
 
@@ -36,10 +36,13 @@ type Archive =
                 let existingHash = Sha256(content.Trim())
                 return hash = existingHash
             }
-            Apply = fun () -> async {
+            Apply = fun ctx -> async {
                 if not(archive.Exists()) then failwithf $"Archive file \"{archive.Value}\" does not exist."
+                ctx.Reporter.Status "Computing archive hash"
                 let! hash = Sha256Hash.OfFile archive
+                ctx.Reporter.Status "Extracting"
                 ZipFile.ExtractToDirectory(archive.Value, destinationDirectory.Value)
                 outputHashFile.WriteAllText(hash.ToString())
+                ctx.Reporter.Log $"Extracted \"{archive.Value}\" to \"{destinationDirectory.Value}\"."
             }
         }

@@ -57,15 +57,17 @@ type Files =
             PresentableName = resourceName source
             DependsOn = dependencies dependsOn
             Lock = None
-            AlreadyApplied = fun () -> async {
+            AlreadyApplied = fun _ -> async {
                 if not(File.Exists targetAbsolutePath) then return false else
                 let! ct = Async.CancellationToken
                 let! existingContent = Async.AwaitTask <| File.ReadAllBytesAsync(targetAbsolutePath, ct)
                 let! actualContent = getContent source
                 return arraysEqual existingContent actualContent
             }
-            Apply = fun () -> async {
+            Apply = fun ctx -> async {
+                ctx.Reporter.Status "Reading the content"
                 let! content = getContent source
+                ctx.Reporter.Status $"Writing to \"{targetAbsolutePath}\""
                 do! writeAllBytesAsync targetAbsolutePath content
             }
         }
@@ -78,10 +80,10 @@ type Files =
             PresentableName = $"Directory \"{path.Value}\""
             DependsOn = dependencies dependsOn
             Lock = None
-            AlreadyApplied = fun () -> async {
+            AlreadyApplied = fun _ -> async {
                 return path.ExistsDirectory()
             }
-            Apply = fun () -> async {
+            Apply = fun _ -> async {
                 path.CreateDirectory()
             }
         }
@@ -97,10 +99,10 @@ type Files =
             PresentableName = $"File \"{path.Value}\""
             DependsOn = dependencies dependsOn
             Lock = None
-            AlreadyApplied = fun () -> async {
+            AlreadyApplied = fun _ -> async {
                 return false
             }
-            Apply = fun () -> async {
+            Apply = fun _ -> async {
                 if path.ReadKind() <> Nullable FileEntryKind.File then
                     failwithf $"File \"{path}\" does not exist."
             }

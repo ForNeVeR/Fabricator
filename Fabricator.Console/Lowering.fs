@@ -92,19 +92,19 @@ let private isFailure = function
 let private isResourceError (ct: CancellationToken) (ex: exn) =
     not (ex :? OperationCanceledException && ct.IsCancellationRequested)
 
-let private runCheck(resource: Resource): Async<TaskOutcome> = async {
+let private runCheck (resource: Resource) (context: ResourceContext): Async<TaskOutcome> = async {
     let! ct = Async.CancellationToken
     try
-        let! applied = resource.AlreadyApplied()
+        let! applied = resource.AlreadyApplied context
         return if applied then CheckPassed else CheckFailed
     with
     | ex when isResourceError ct ex -> return Errored ex
 }
 
-let private runApply(resource: Resource): Async<TaskOutcome> = async {
+let private runApply (resource: Resource) (context: ResourceContext): Async<TaskOutcome> = async {
     let! ct = Async.CancellationToken
     try
-        do! resource.Apply()
+        do! resource.Apply context
         return Applied
     with
     | ex when isResourceError ct ex -> return Errored ex
@@ -152,12 +152,14 @@ let private withLock (locks: Locks) (resource: Resource) (action: unit -> Async<
 /// <param name="locks">
 /// The semaphores of the concurrency groups, see <see cref="M:Fabricator.Console.Lowering.createLocks"/>.
 /// </param>
-/// <param name="onStarted">Called before the actual resource action (check or apply) starts.</param>
+/// <param name="start">
+/// Called right before the actual resource action (check or apply) starts. Returns the context to pass to the action.
+/// </param>
 /// <param name="loweredTask">The task to execute.</param>
 /// <param name="inputs">The results of the task's prerequisites.</param>
 let run
     (locks: Locks)
-    (onStarted: LoweredTask -> unit)
+    (start: LoweredTask -> ResourceContext)
     (loweredTask: LoweredTask)
     (inputs: IReadOnlyList<LoweredTask * TaskOutcome>)
     : Async<TaskOutcome> =
@@ -165,10 +167,7 @@ let run
     match loweredTask.Kind with
     | Check when inputs |> Seq.exists (snd >> isFailure) -> async.Return Blocked
     | Check ->
-        withLock locks resource (fun () ->
-            onStarted loweredTask
-            runCheck resource
-        )
+        withLock locks resource (fun () -> runCheck resource (start loweredTask))
     | Apply ->
         let ownCheck =
             inputs
@@ -179,9 +178,6 @@ let run
         | CheckPassed -> async.Return NotRequired
         | Errored _ | Blocked -> async.Return Blocked
         | CheckFailed ->
-            withLock locks resource (fun () ->
-                onStarted loweredTask
-                runApply resource
-            )
+            withLock locks resource (fun () -> runApply resource (start loweredTask))
         | Applied | NotRequired ->
             raise <| InvalidOperationException $"Unexpected check outcome for task \"{loweredTask}\": {ownCheck}."

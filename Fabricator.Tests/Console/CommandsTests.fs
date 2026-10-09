@@ -16,13 +16,13 @@ open Xunit
 
 let private runCheck(roots: FakeResource list) = task {
     use output = new StringWriter()
-    let! status = Commands.check output (roots |> Seq.map _.Resource) |> Async.StartAsTask
+    let! status = Commands.check (ExecutionUi.PlainUi output) (roots |> Seq.map _.Resource) |> Async.StartAsTask
     return status, output.ToString()
 }
 
 let private runApply(roots: FakeResource list) = task {
     use output = new StringWriter()
-    let! success = Commands.apply output (roots |> Seq.map _.Resource) |> Async.StartAsTask
+    let! success = Commands.apply (ExecutionUi.PlainUi output) (roots |> Seq.map _.Resource) |> Async.StartAsTask
     return success, output.ToString()
 }
 
@@ -348,7 +348,7 @@ let ``Cancellation stops the application without starting dependents or reportin
 
     use cts = new CancellationTokenSource()
     use output = new StringWriter()
-    let execution = Async.StartAsTask(Commands.apply output [ r.Resource ], cancellationToken = cts.Token)
+    let execution = Async.StartAsTask(Commands.apply (ExecutionUi.PlainUi output) [ r.Resource ], cancellationToken = cts.Token)
     do! applyStarted.Task.WaitAsync(TimeSpan.FromSeconds 10.0)
     cts.Cancel()
 
@@ -402,4 +402,59 @@ let ``Resources from different concurrency groups are processed in parallel``():
 
     Assert.True(success, output)
     Assert.Equal(3, started.Value)
+}
+/// Asserts that the lines of the output matching the pattern go one after another, without any other lines between.
+let private assertContiguous (output: string) (pattern: string) =
+    let lines = output.Split('\n') |> Array.map _.TrimEnd('\r')
+    let indices =
+        lines
+        |> Array.indexed
+        |> Array.filter (fun (_, line) -> Text.RegularExpressions.Regex.IsMatch(line, pattern))
+        |> Array.map fst
+    Assert.True(indices.Length > 1, $"Lines matching \"{pattern}\" not found in output:\n{output}")
+    Assert.True(
+        Array.last indices - indices[0] = indices.Length - 1,
+        $"Lines matching \"{pattern}\" are interleaved with other lines:\n{output}"
+    )
+
+[<Fact>]
+let ``Logs of concurrently applied resources are not interleaved``(): Task = task {
+    let log = EventLog()
+    let names = [ "A"; "B"; "C" ]
+    let resources = [ for name in names -> FakeResource(name, log) ]
+    let started = requireConcurrency (fun r hook -> r.OnApply <- hook) resources
+    for resource in resources do
+        resource.OnApplyWithContext <- fun ctx -> async {
+            for i in 1 .. 5 do
+                ctx.Reporter.Log $"line {i}"
+                do! Async.Sleep 10
+        }
+
+    let! success, output = runApply resources
+
+    Assert.True(success, output)
+    Assert.Equal(3, started.Value)
+    for name in names do
+        assertContiguous output $"^{name}: (applying…|line \d|applied\.)$"
+        Assert.Contains($"{name}: line 5", output)
+}
+
+[<Fact>]
+let ``Status and progress reporting is allowed in plain output``(): Task = task {
+    let log = EventLog()
+    let r = FakeResource("R", log)
+    r.OnApplyWithContext <- fun ctx -> async {
+        ctx.Reporter.Status "Working"
+        let! result = ctx.Reporter.WithProgress("Progress", Some 10L, Items, fun progress -> async {
+            for i in 1L .. 10L do progress.Report i
+            return 42
+        })
+        ctx.Reporter.Log $"result {result}"
+    }
+
+    let! success, output = runApply [ r ]
+
+    Assert.True(success, output)
+    Assert.Contains("R: result 42", output)
+    Assert.DoesNotContain("Working", output)
 }

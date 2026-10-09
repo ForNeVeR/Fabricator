@@ -79,4 +79,6 @@ let private resources = [
 
 [<EntryPoint>]
 let main(args: string[]): int =
-    EntryPoint.main args resources
+    match args with
+    | [| "demo"; command |] -> EntryPoint.main [| command |] (Demo.resources(shawlUrl, shawlHash))
+    | _ -> EntryPoint.main args resources

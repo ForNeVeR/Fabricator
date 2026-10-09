@@ -21,15 +21,14 @@ let private printUsage() =
     printfn "check - checks and shows the upcoming changes to the current environment, no actions taken"
 
 /// Runs the command until it completes, cancelling it on the first Ctrl+C. Returns None if the command was cancelled.
-let private runCancellable(command: Async<'a>): 'a option =
+let private runCancellable (ui: ExecutionUi.IExecutionUi) (command: Async<'a>): 'a option =
     use cts = new CancellationTokenSource()
     let onCancelKeyPress = ConsoleCancelEventHandler(fun _ args ->
         // Let the second Ctrl+C terminate the process.
         if not cts.IsCancellationRequested then
             args.Cancel <- true
-            Console.Out.WriteLine(
+            ui.WriteLine
                 "Cancelling: waiting for the running resources to finish. Press Ctrl+C again to terminate immediately."
-            )
             cts.Cancel()
     )
 
@@ -39,7 +38,7 @@ let private runCancellable(command: Async<'a>): 'a option =
             Some(Async.RunSynchronously(command, cancellationToken = cts.Token))
         with
         | :? OperationCanceledException when cts.IsCancellationRequested ->
-            Console.Out.WriteLine "Execution cancelled."
+            ui.WriteLine "Execution cancelled."
             None
     finally
         Console.CancelKeyPress.RemoveHandler onCancelKeyPress
@@ -67,13 +66,14 @@ let main (args: string seq) (resources: Resource seq): int =
         then Array.skip 1 args
         else args
 
+    let ui = ExecutionUi.forCurrentConsole()
     match args with
     | [|"apply"|] ->
-        match apply Console.Out resources |> runCancellable with
+        match apply ui resources |> runCancellable ui with
         | Some true -> ExitCodes.Success
         | Some false | None -> ExitCodes.ExecutionError
     | [|"check"|] ->
-        match check Console.Out resources |> runCancellable with
+        match check ui resources |> runCancellable ui with
         | Some AllApplied -> ExitCodes.Success
         | Some NotAllApplied -> ExitCodes.NotAllApplied
         | Some CheckError | None -> ExitCodes.ExecutionError

@@ -22,16 +22,18 @@ type FakeResource(name: string, log: EventLog, lock: ConcurrencyGroup option, de
         PresentableName = name
         DependsOn = ImmutableHashSet.CreateRange(dependencies |> Seq.map (fun (d: FakeResource) -> d.Resource))
         Lock = lock
-        AlreadyApplied = fun () -> async {
+        AlreadyApplied = fun ctx -> async {
             log.Add $"check {name}"
             do! this.OnCheck()
+            do! this.OnCheckWithContext ctx
             match this.CheckError with
             | Some e -> return raise e
             | None -> return this.IsApplied
         }
-        Apply = fun () -> async {
+        Apply = fun ctx -> async {
             log.Add $"apply {name}"
             do! this.OnApply()
+            do! this.OnApplyWithContext ctx
             match this.ApplyError with
             | Some e -> raise e
             | None -> this.IsApplied <- true
@@ -46,6 +48,8 @@ type FakeResource(name: string, log: EventLog, lock: ConcurrencyGroup option, de
     member val ApplyError: exn option = None with get, set
     member val OnCheck: unit -> Async<unit> = (fun () -> async.Return()) with get, set
     member val OnApply: unit -> Async<unit> = (fun () -> async.Return()) with get, set
+    member val OnCheckWithContext: ResourceContext -> Async<unit> = (fun _ -> async.Return()) with get, set
+    member val OnApplyWithContext: ResourceContext -> Async<unit> = (fun _ -> async.Return()) with get, set
 
     /// The resource itself, always the same object for the same fake.
     member _.Resource: Resource = resource

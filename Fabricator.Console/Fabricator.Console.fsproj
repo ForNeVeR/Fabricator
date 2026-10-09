@@ -15,6 +15,8 @@ SPDX-License-Identifier: MIT
     <ItemGroup>
         <Compile Include="TaskExecutor.fs" />
         <Compile Include="Lowering.fs" />
+        <Compile Include="OrderedLog.fs" />
+        <Compile Include="ExecutionUi.fs" />
         <Compile Include="Commands.fs" />
         <Compile Include="EntryPoint.fs" />
         <Compile Include="AssemblyInfo.fs" />
@@ -22,6 +24,10 @@ SPDX-License-Identifier: MIT
 
     <ItemGroup>
       <ProjectReference Include="..\Fabricator.Core\Fabricator.Core.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Spectre.Console" Version="0.57.2" />
     </ItemGroup>
 
 </Project>
