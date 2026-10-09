@@ -19,11 +19,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **(Breaking change!)** Resources are now checked and applied in parallel. The order of the resources passed to `EntryPoint.main` no longer defines the order of their processing; use `DependsOn` to declare which resources have to be applied before others.
 - **(Breaking change!)** `check` now reports that not all resources are applied (exit code 3) if any of the dependencies is not applied, even if the root resources are.
 - **(Breaking change!)** If a resource fails to be checked or applied during `apply`, the resources depending on it are skipped, while independent resources continue to be processed (previously, the processing stopped on the first failure).
+- **(Breaking change!)** `Resource.AlreadyApplied` and `Resource.Apply` now receive a `ResourceContext`, allowing the resource to report the status, progress, and log of the operation via `ResourceContext.Reporter`. Use `ResourceContext.Null` to call these functions directly.
+- The output of the external commands run by `Chocolatey.chocolateyPackage` and `DotNetTool.Install` is now streamed to the resource log.
+- `Downloads.downloadFile` no longer buffers the whole file in memory before saving it, and reports the download progress.
 
 ### Added
 - All the bundled resources accept an optional `dependsOn` parameter to declare their dependencies.
 - `Resource.NoDependencies` for resources without dependencies.
 - `ConcurrencyGroup` and `Resource.Lock`: resources from the same concurrency group are never checked or applied concurrently. `HostsFile.Record` (per hosts file), `Chocolatey.chocolateyPackage` and `DotNetTool.Install` (per installation path) use their own groups, available as `HostsFile.ConcurrencyGroup`, `Chocolatey.ConcurrencyGroup` and `DotNetTool.ConcurrencyGroup`.
+- `IReporter`, `IProgressReporter`, `ProgressUnit` and `ResourceContext` to report the status, progress, and log of resource checks and applications.
+- A live progress display in interactive terminals, showing the overall progress of the execution and the running resource checks and applications with their statuses and progress.
+- The logs of resource checks and applications are now printed in order: the lines of different resources are never interleaved.
 - Ctrl+C support in `EntryPoint.main`: on the first Ctrl+C, no new resources are processed, the running ones are notified via their `Async.CancellationToken`, and the program exits with code 2 after all of them have finished. A second Ctrl+C terminates the program immediately.
 
 ### Fixed

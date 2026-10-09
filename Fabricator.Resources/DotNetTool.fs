@@ -28,16 +28,16 @@ type DotNetTool =
             PresentableName = $"{name} {version}"
             DependsOn = dependencies dependsOn
             Lock = Some(DotNetTool.ConcurrencyGroup installationPath)
-            AlreadyApplied = fun () -> async {
+            AlreadyApplied = fun ctx -> async {
                 if not <| installationPath.ExistsDirectory() then return false else
+                ctx.Reporter.Status "Querying the installed tools"
                 let! execResult =
-                    runCommand "dotnet" [|
+                    runCommand ctx.Reporter "dotnet" [|
                         "tool"
                         "list"
                         "--tool-path"; installationPath.Value
                         "--format"; "json"
                     |]
-                if not execResult.Success then failwithf $"Exit code from dotnet tool: {execResult.ExitCode}. Error: {execResult.StandardError}"
                 let document = JsonNode.Parse(execResult.StandardOutput) |> nonNull
                 let document = document.AsObject()
                 let data = document.["data"] |> nonNull
@@ -53,9 +53,10 @@ type DotNetTool =
 
                 return packageVersion = version
             }
-            Apply = fun () -> async {
+            Apply = fun ctx -> async {
+                ctx.Reporter.Status $"Installing version {version}"
                 let! execResult =
-                    runCommand "dotnet" [|
+                    runCommand ctx.Reporter "dotnet" [|
                         "tool"
                         "install"
                         name

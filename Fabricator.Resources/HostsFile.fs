@@ -91,7 +91,7 @@ type HostsFile =
             DependsOn = dependencies dependsOn
             Lock = Some(HostsFile.ConcurrencyGroup filePath)
 
-            AlreadyApplied = fun () -> async {
+            AlreadyApplied = fun _ -> async {
                 if not (filePath.Exists()) then
                     return false
                 else
@@ -103,7 +103,7 @@ type HostsFile =
                     | None -> return false
             }
 
-            Apply = fun () -> async {
+            Apply = fun ctx -> async {
                 let! ct = Async.CancellationToken
 
                 // Ensure the file exists
@@ -150,6 +150,7 @@ type HostsFile =
                         // Add new entry at the end
                         Array.append lines [| $"{ipAddress} {host}" |]
 
+                ctx.Reporter.Status $"Writing \"{filePath.Value}\""
                 do! Async.AwaitTask(filePath.WriteAllLinesAsync(newLines, ct))
             }
         }

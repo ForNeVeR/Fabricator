@@ -40,7 +40,7 @@ let private testAlreadyApplied (sourceContent: byte[]) (targetContent: byte[]) =
     do! File.WriteAllBytesAsync(targetPath, targetContent)
 
     let resource = file(AbsoluteFile sourcePath, targetPath)
-    return! resource.AlreadyApplied()
+    return! resource.AlreadyApplied ResourceContext.Null
 }
 
 [<Fact>]
@@ -63,7 +63,7 @@ let ``Apply should create target file``(): Task = upcast task {
     let resource = file(GeneratedContent("content", fun() -> bytes), targetFile)
 
     Assert.Equal(0L, FileInfo(targetFile).Length)
-    do! resource.Apply()
+    do! resource.Apply ResourceContext.Null
     let! actualContent = File.ReadAllBytesAsync(targetFile)
     Assert.Equal<byte>(bytes, actualContent)
 }

@@ -113,13 +113,15 @@ type WindowsCertificates =
             DependsOn = dependencies dependsOn
             Lock = None
 
-            AlreadyApplied = fun () -> async {
+            AlreadyApplied = fun _ -> async {
                 let certificate = cert.Value
                 return isCertificateInStore certificate
             }
 
-            Apply = fun () -> async {
+            Apply = fun ctx -> async {
                 let certificate = cert.Value
+                ctx.Reporter.Status $"Adding to {storeLocation.Location}/{storeLocation.StoreName}"
                 addCertificateToStore certificate
+                ctx.Reporter.Log $"Certificate {certificate.Thumbprint} added to {storeLocation.Location}/{storeLocation.StoreName}."
             }
         }

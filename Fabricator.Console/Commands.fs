@@ -5,55 +5,68 @@
 module internal Fabricator.Console.Commands
 
 open System.Collections.Generic
-open System.IO
+open Fabricator.Console.ExecutionUi
 open Fabricator.Console.Lowering
 open Fabricator.Core
 
 let private name(t: LoweredTask) = t.Resource.PresentableName
 
-let private execute (output: TextWriter) (graph: TaskExecutor.TaskGraph<LoweredTask>)
+/// The message to log after the task has finished with the outcome.
+let private outcomeMessage (t: LoweredTask) (outcome: TaskOutcome): string option =
+    match t.Kind, outcome with
+    | Check, CheckPassed -> Some "already applied."
+    | Check, CheckFailed -> Some "not applied."
+    | Check, Blocked -> Some "skipped because a dependency has failed."
+    | Apply, Applied -> Some "applied."
+    | _, Errored e -> Some $"error:\n{e}"
+    | _ -> None
+
+let private execute (ui: IExecutionUi) (header: string) (title: string) (graph: TaskExecutor.TaskGraph<LoweredTask>)
                     : Async<IReadOnlyDictionary<LoweredTask, TaskOutcome>> =
-    let onStarted(t: LoweredTask) =
-        match t.Kind with
-        | Check -> ()
-        | Apply -> output.WriteLine $"{name t}: applying…"
+    let locks = createLocks graph
+    ui.Run(header, title, graph.Count, fun view ->
+        TaskExecutor.execute graph (fun t inputs -> async {
+            let mutable taskView = None
+            let start(t: LoweredTask) =
+                let started = view.StartTask(name t)
+                taskView <- Some started
+                if t.Kind = Apply then started.Reporter.Log "applying…"
+                { Reporter = started.Reporter }
 
-    let report (t: LoweredTask) (outcome: TaskOutcome) =
-        match t.Kind, outcome with
-        | Check, CheckPassed -> output.WriteLine $"{name t}: already applied."
-        | Check, CheckFailed -> output.WriteLine $"{name t}: not applied."
-        | Check, Blocked -> output.WriteLine $"{name t}: skipped because a dependency has failed."
-        | Apply, Applied -> output.WriteLine $"{name t}: applied."
-        | _, Errored e -> output.WriteLine $"{name t}: error:\n{e}"
-        | _ -> ()
-
-    let locks = Lowering.createLocks graph
-    TaskExecutor.execute graph (fun t inputs -> async {
-        let! outcome = Lowering.run locks onStarted t inputs
-        report t outcome
-        return outcome
-    })
-
-let private isError = function
-    | Errored _ -> true
-    | _ -> false
+            try
+                let! outcome = run locks start t inputs
+                let message = outcomeMessage t outcome
+                match taskView with
+                | Some started ->
+                    taskView <- None
+                    started.Complete message
+                | None -> message |> Option.iter (fun m -> view.LogInstant(name t, m))
+                return outcome
+            finally
+                // Make sure the task's log is closed even on cancellation, so it doesn't hold the next logs back.
+                taskView |> Option.iter (fun (started: ITaskView) -> started.Complete None)
+                view.TaskFinished()
+        })
+    )
 
 /// Applies the resources and their dependencies that are not applied yet. Returns whether all the required actions
 /// were successful.
-let apply (output: TextWriter) (resources: Resource seq): Async<bool> = async {
-    output.WriteLine "Applying changes to the current environment."
-    let graph = Lowering.lower CheckAndApply resources
-    let! results = execute (TextWriter.Synchronized output) graph
+let apply (ui: IExecutionUi) (resources: Resource seq): Async<bool> = async {
+    let graph = lower CheckAndApply resources
+    let! results = execute ui "Applying changes to the current environment." "Applying" graph
     return results.Values |> Seq.forall (function Errored _ | Blocked -> false | _ -> true)
 }
 
 type CheckStatus = AllApplied | NotAllApplied | CheckError
 
+let private isError = function
+    | Errored _ -> true
+    | _ -> false
+
 /// Checks the resources and all their dependencies.
-let check (output: TextWriter) (resources: Resource seq): Async<CheckStatus> = async {
-    output.WriteLine "Checking the current environment."
-    let graph = Lowering.lower CheckOnly resources
-    let! results = execute (TextWriter.Synchronized output) graph
+let check (ui: IExecutionUi) (resources: Resource seq): Async<CheckStatus> = async {
+    let graph = lower CheckOnly resources
+    let! results = execute ui "Checking the current environment." "Checking" graph
     return
         if results.Values |> Seq.exists isError then CheckError
         elif results.Values |> Seq.contains CheckFailed then NotAllApplied

@@ -28,14 +28,14 @@ let private testAlreadyApplied (hostsContent: string) (ipAddress: string) (host:
     withTempFile (fun path -> task {
         do! path.WriteAllTextAsync(hostsContent)
         let resource = HostsFile.Record(ipAddress, host, path)
-        return! resource.AlreadyApplied()
+        return! resource.AlreadyApplied ResourceContext.Null
     })
 
 let private testApply (hostsContent: string) (ipAddress: string) (host: string) (expectedHostsContent: string) =
     withTempFile (fun path -> task {
         do! path.WriteAllTextAsync(hostsContent)
         let resource = HostsFile.Record(ipAddress, host, path)
-        do! resource.Apply()
+        do! resource.Apply ResourceContext.Null
         let! actualContent = path.ReadAllTextAsync()
         Assert.Equal(expectedHostsContent, actualContent)
     })
@@ -44,7 +44,7 @@ let private testApplyAndRead (hostsContent: string) (ipAddress: string) (host: s
     withTempFile (fun path -> task {
         do! path.WriteAllTextAsync(hostsContent)
         let resource = HostsFile.Record(ipAddress, host, path)
-        do! resource.Apply()
+        do! resource.Apply ResourceContext.Null
         return! path.ReadAllTextAsync()
     })
 
@@ -63,7 +63,7 @@ let ``AlreadyApplied returns false when host file does not exist``(): Task = tas
     let tempPath = Temporary.CreateTempFile()
     tempPath.Delete() // Delete to make it non-existent
     let resource = HostsFile.Record("127.0.0.1", "example.com", tempPath)
-    let! result = resource.AlreadyApplied()
+    let! result = resource.AlreadyApplied ResourceContext.Null
     Assert.False result
 }
 
@@ -152,7 +152,7 @@ let ``Apply fails when hosts file does not exist``(): Task = task {
     let nonExistentPath = Temporary.CreateTempFile()
     nonExistentPath.Delete() // Delete to make it non-existent
     let resource = HostsFile.Record("192.168.1.1", "example.com", nonExistentPath)
-    let! ex = Assert.ThrowsAsync<Exception>(fun () -> Async.StartAsTask(resource.Apply()) :> Task)
+    let! ex = Assert.ThrowsAsync<Exception>(fun () -> Async.StartAsTask(resource.Apply ResourceContext.Null) :> Task)
     Assert.Contains("Hosts file not found", ex.Message)
 }
 
@@ -169,8 +169,8 @@ let ``Apply is idempotent``(): Task = task {
     do! withTempFile (fun path -> task {
         do! path.WriteAllTextAsync("127.0.0.1 localhost\n")
         let resource = HostsFile.Record("192.168.1.1", "example.com", path)
-        do! resource.Apply()
-        do! resource.Apply()
+        do! resource.Apply ResourceContext.Null
+        do! resource.Apply ResourceContext.Null
         let! content = path.ReadAllTextAsync()
         let lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries)
         let matchingLines = lines |> Array.filter (fun line -> line.Contains("example.com"))
@@ -183,10 +183,10 @@ let ``Apply and AlreadyApplied work together``(): Task = task {
     do! withTempFile (fun path -> task {
         do! path.WriteAllTextAsync("127.0.0.1 localhost\n")
         let resource = HostsFile.Record("192.168.1.1", "example.com", path)
-        let! beforeApply = resource.AlreadyApplied()
+        let! beforeApply = resource.AlreadyApplied ResourceContext.Null
         Assert.False beforeApply
-        do! resource.Apply()
-        let! afterApply = resource.AlreadyApplied()
+        do! resource.Apply ResourceContext.Null
+        let! afterApply = resource.AlreadyApplied ResourceContext.Null
         Assert.True afterApply
     })
 }
@@ -221,7 +221,7 @@ let ``Several records applied together are all written to the hosts file``(): Ta
         let resources = [ for host in hosts -> HostsFile.Record("127.0.0.1", host, path) ]
 
         use output = new StringWriter()
-        let! success = Fabricator.Console.Commands.apply output resources |> Async.StartAsTask
+        let! success = Fabricator.Console.Commands.apply (Fabricator.Console.ExecutionUi.PlainUi output) resources |> Async.StartAsTask
 
         Assert.True(success, output.ToString())
         let! lines = path.ReadAllLinesAsync()

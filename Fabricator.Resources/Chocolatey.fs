@@ -27,8 +27,9 @@ type Chocolatey =
     /// A <see cref="T:Fabricator.Core.Resource"/> checking the state of the package and applying necessary changes.
     /// </returns>
     static member chocolateyPackage(name: string, version: string, ?dependsOn: Resource seq): Resource =
-        let getInstalledPackageVersion() = async {
-            let! command = runCommand "choco" [|"list"; name; "--exact"; "--limit-output"|]
+        let getInstalledPackageVersion(reporter: IReporter) = async {
+            reporter.Status "Querying the installed version"
+            let! command = runCommand reporter "choco" [|"list"; name; "--exact"; "--limit-output"|]
             let data = command.StandardOutput
 
             let parseEntry(entry: string) =
@@ -43,26 +44,28 @@ type Chocolatey =
                 | _ -> failwithf $"More than one line found in \"{data}\"."
         }
 
-        let installPackage() =
-            runCommand "choco" [|"install"; name; "--version"; version; "--yes"|] |> Async.Ignore
+        let installPackage(reporter: IReporter) =
+            reporter.Status $"Installing version {version}"
+            runCommand reporter "choco" [|"install"; name; "--version"; version; "--yes"|] |> Async.Ignore
 
-        let upgradePackage() =
-            runCommand "choco" [|"upgrade"; name; "--version"; version; "--yes"|] |> Async.Ignore
+        let upgradePackage(reporter: IReporter) =
+            reporter.Status $"Upgrading to version {version}"
+            runCommand reporter "choco" [|"upgrade"; name; "--version"; version; "--yes"|] |> Async.Ignore
 
         {
             PresentableName = $"Package {name}"
             DependsOn = dependencies dependsOn
             Lock = Some Chocolatey.ConcurrencyGroup
 
-            AlreadyApplied = fun () -> async {
-                let! installedVersion = getInstalledPackageVersion()
+            AlreadyApplied = fun ctx -> async {
+                let! installedVersion = getInstalledPackageVersion ctx.Reporter
                 return installedVersion = Some version
             }
-            Apply = fun () -> async {
-                let! installedVersion = getInstalledPackageVersion()
+            Apply = fun ctx -> async {
+                let! installedVersion = getInstalledPackageVersion ctx.Reporter
                 return!
                     match installedVersion with
-                    | Some _ -> upgradePackage()
-                    | None -> installPackage()
+                    | Some _ -> upgradePackage ctx.Reporter
+                    | None -> installPackage ctx.Reporter
             }
         }

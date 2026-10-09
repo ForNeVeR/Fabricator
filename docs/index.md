@@ -25,8 +25,28 @@ Full system state, from Fabricator's point of view, corresponds to a set of reso
 
 When executing the `apply` command, Fabricator will apply each resource's dependencies first, then check the resource's state, and apply the resource if it isn't applied yet. Independent resources are checked and applied in parallel. The `check` command checks all the resources (including the dependencies) in parallel.
 
+Progress and Logs
+-----------------
+In an interactive terminal, Fabricator shows a live display with the overall progress of the execution and the list of the running resource checks and applications, with the status and progress of each. Below the display, the logs of the checks and applications are printed in order: the log of the earliest started one is shown live, while the logs of the others are buffered until it finishes, so the lines of different resources never interleave. When the output is redirected, only the logs are printed.
+
+Resources report their status, progress, and log via the `ResourceContext` passed to `AlreadyApplied` and `Apply`:
+
+```fsharp
+Apply = fun ctx -> async {
+    ctx.Reporter.Status "Preparing"
+    ctx.Reporter.Log "Some message."
+    do! ctx.Reporter.WithProgress("Processing", Some 40L, Items, fun progress -> async {
+        for i in 1L .. 40L do
+            // …
+            progress.Report i
+    })
+}
+```
+
+To see all the kinds of progress reporting in action, run the [example][] in the demo mode: `dotnet run --project Fabricator.Example -- demo apply` (or `demo check`). The demo resources only change files in a temporary directory.
+
 Packages
--------------
+--------
 - [Fabricator.Console][console]
 - [Fabricator.Core][core]
 - [Fabricator.Resources][resources]
