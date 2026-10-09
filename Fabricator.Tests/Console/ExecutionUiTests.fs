@@ -23,7 +23,9 @@ let private createInteractiveConsole(writer: TextWriter): IAnsiConsole =
             Out = AnsiConsoleOutput writer,
             Ansi = AnsiSupport.Yes,
             ColorSystem = ColorSystemSupport.NoColors,
-            Interactive = InteractionSupport.Yes
+            Interactive = InteractionSupport.Yes,
+            // Otherwise, the CI enrichers (e.g. the one for GitHub Actions) make the console non-interactive.
+            Enrichment = ProfileEnrichment(UseDefaultEnrichers = false)
         )
     )
     console.Profile.Width <- 100
