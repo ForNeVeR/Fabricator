@@ -171,13 +171,17 @@ let ``Report items carry the check changes in check mode``(): unit =
 
 [<Fact>]
 let ``Report items carry the apply changes in apply mode``(): unit =
-    let a, b = resource "A" [], resource "B" []
+    let a, b, c = resource "A" [], resource "B" [], resource "C" []
     let report =
-        createReport CheckAndApply [ a; b ] [
+        createReport CheckAndApply [ a; b; c ] [
             check a, CheckPassed; apply a, NotRequired
             check b, ChangeNeeded(NamedChange "planned"); apply b, Applied(NamedChange "made")
+            check c, ChangeNeeded(NamedChange "attempted"); apply c, error
         ]
-    Assert.Equal<ResourceChange list>([ NoChanges; NamedChange "made" ], report.Items |> List.map _.Change)
+    Assert.Equal<ResourceChange list>(
+        [ NoChanges; NamedChange "made"; NamedChange "attempted" ],
+        report.Items |> List.map _.Change
+    )
 
 let private detailTexts change = Report.details change |> Seq.map _.Text
 let private detailKinds change = Report.details change |> Seq.map _.Kind

@@ -36,7 +36,8 @@ type internal ReportItem =
         State: ReportItemState
         /// <summary>
         /// The change required to apply the resource for <see cref="F:Fabricator.Console.ReportItemState.NotApplied"/>,
-        /// the change made for <see cref="F:Fabricator.Console.ReportItemState.Applied"/>, or
+        /// the change made for <see cref="F:Fabricator.Console.ReportItemState.Applied"/>, the change that was being
+        /// made for <see cref="F:Fabricator.Console.ReportItemState.ApplyErrored"/>, or
         /// <see cref="F:Fabricator.Core.ResourceChange.NoChanges"/> for the other states.
         /// </summary>
         Change: ResourceChange
@@ -118,7 +119,7 @@ module internal Report =
         match checkOutcome, applyOutcome with
         | CheckPassed, NotRequired -> ReportItemState.AlreadyApplied, NoChanges
         | ChangeNeeded _, Applied change -> ReportItemState.Applied, change
-        | ChangeNeeded _, Errored _ -> ReportItemState.ApplyErrored, NoChanges
+        | ChangeNeeded change, Errored _ -> ReportItemState.ApplyErrored, change
         | Errored _, Blocked -> ReportItemState.CheckErrored, NoChanges
         | Blocked, Blocked -> ReportItemState.Skipped, NoChanges
         | _ -> unexpected resource (checkOutcome, applyOutcome)
