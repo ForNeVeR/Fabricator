@@ -12,7 +12,7 @@ open Xunit
 
 let private createLog() =
     let lines = ConcurrentQueue<string>()
-    OrderedLog lines.Enqueue, lines
+    OrderedLog(fun batch -> for line in batch do lines.Enqueue line), lines
 
 let private assertLines (expected: string list) (lines: ConcurrentQueue<string>) =
     Assert.Equal<string list>(expected, Seq.toList lines)
@@ -22,7 +22,7 @@ let private timeout = TimeSpan.FromSeconds 10.0
 [<Fact>]
 let ``The first log is written before it is completed``(): Task = task {
     let written = TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
-    let log = OrderedLog(fun line -> if line = "a1" then written.SetResult())
+    let log = OrderedLog(fun lines -> if Seq.contains "a1" lines then written.SetResult())
     let first = log.Open()
 
     first.TryWrite "a1" |> ignore
@@ -112,6 +112,33 @@ let ``Sink failure is reported on completion``(): Task = task {
 
     let! ex = Assert.ThrowsAsync<Exception>(fun () -> log.CompleteAsync())
     Assert.Equal("Sink failure.", ex.Message)
+}
+
+[<Fact>]
+let ``Sink failure fails the completion before it is requested``(): Task = task {
+    let log = OrderedLog(fun _ -> failwith "Sink failure.")
+    let first = log.Open()
+    first.TryWrite "a1" |> ignore
+
+    let! ex = Assert.ThrowsAsync<Exception>(fun () -> log.Completion.WaitAsync timeout)
+    Assert.Equal("Sink failure.", ex.Message)
+}
+
+[<Fact>]
+let ``Available lines of a log are written in a single batch``(): Task = task {
+    let batches = ConcurrentQueue<string list>()
+    let log = OrderedLog(fun lines -> batches.Enqueue(Seq.toList lines))
+    let first = log.Open()
+    let second = log.Open()
+
+    second.TryWrite "b1" |> ignore
+    second.TryWrite "b2" |> ignore
+    second.TryWrite "b3" |> ignore
+    second.Complete()
+    first.Complete()
+
+    do! log.CompleteAsync()
+    Assert.Equal<string list list>([ [ "b1"; "b2"; "b3" ] ], Seq.toList batches)
 }
 
 [<Fact>]

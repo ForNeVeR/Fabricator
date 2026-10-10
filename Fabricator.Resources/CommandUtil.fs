@@ -10,8 +10,6 @@ open Fabricator.Core
 open Medallion.Shell
 
 type CommandOutput = {
-    Success: bool
-    ExitCode: int
     StandardOutput: string
     StandardError: string
 }
@@ -50,5 +48,5 @@ let runCommand (reporter: IReporter) (exe: string) (args: obj[]): Async<CommandO
     if not result.Success
     then failwithf $"{exe} execution error {string result.ExitCode}: {standardError}\n{standardOutput}"
 
-    return { Success = result.Success; ExitCode = result.ExitCode; StandardOutput = standardOutput; StandardError = standardError }
+    return { StandardOutput = standardOutput; StandardError = standardError }
 }

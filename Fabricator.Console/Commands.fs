@@ -24,7 +24,10 @@ let private outcomeMessage (t: LoweredTask) (outcome: TaskOutcome): string optio
 let private execute (ui: IExecutionUi) (header: string) (title: string) (graph: TaskExecutor.TaskGraph<LoweredTask>)
                     : Async<IReadOnlyDictionary<LoweredTask, TaskOutcome>> =
     let locks = createLocks graph
-    ui.Run(header, title, graph.Count, fun view ->
+    // The last task of its resource: the apply task, or the check task if the resource is only checked.
+    let isFinal(t: LoweredTask) = t.Kind = Apply || not(graph.ContainsKey { t with Kind = Apply })
+    let totalResources = graph.Keys |> Seq.filter isFinal |> Seq.length
+    ui.Run(header, title, totalResources, fun view ->
         TaskExecutor.execute graph (fun t inputs -> async {
             let mutable taskView = None
             let start(t: LoweredTask) =
@@ -45,7 +48,7 @@ let private execute (ui: IExecutionUi) (header: string) (title: string) (graph: 
             finally
                 // Make sure the task's log is closed even on cancellation, so it doesn't hold the next logs back.
                 taskView |> Option.iter (fun (started: ITaskView) -> started.Complete None)
-                view.TaskFinished()
+                if isFinal t then view.ResourceFinished()
         })
     )
 

@@ -20,7 +20,8 @@ let private printUsage() =
     printfn "apply - applies the resources to the current environment"
     printfn "check - checks and shows the upcoming changes to the current environment, no actions taken"
 
-/// Runs the command until it completes, cancelling it on the first Ctrl+C. Returns None if the command was cancelled.
+/// Runs the command until it completes, cancelling it on the first Ctrl+C. Returns None if the command was cancelled
+/// or has failed.
 let private runCancellable (ui: ExecutionUi.IExecutionUi) (command: Async<'a>): 'a option =
     use cts = new CancellationTokenSource()
     let onCancelKeyPress = ConsoleCancelEventHandler(fun _ args ->
@@ -39,6 +40,9 @@ let private runCancellable (ui: ExecutionUi.IExecutionUi) (command: Async<'a>): 
         with
         | :? OperationCanceledException when cts.IsCancellationRequested ->
             ui.WriteLine "Execution cancelled."
+            None
+        | ex ->
+            eprintfn $"Execution failed: {ex}"
             None
     finally
         Console.CancelKeyPress.RemoveHandler onCancelKeyPress

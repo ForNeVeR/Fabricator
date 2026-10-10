@@ -44,7 +44,8 @@ type IReporter =
     /// <param name="action">The action, receiving the reporter of its progress.</param>
     /// <remarks>
     /// The progress is shown as a part of the operation that has received this reporter. It is reset after the action
-    /// finishes. If several such actions run concurrently within the same operation, the last reported value is shown.
+    /// finishes. If several such actions run concurrently within the same operation, the progress of the latest started
+    /// one that is still running is shown.
     /// </remarks>
     abstract WithProgress<'a>:
         header: string * total: int64 option * progressUnit: ProgressUnit * action: (IProgressReporter -> Async<'a>)

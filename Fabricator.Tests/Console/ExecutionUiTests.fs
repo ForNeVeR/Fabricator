@@ -76,6 +76,9 @@ let ``Live display handles more running tasks than it has rows for``(): Task = t
     let text = output.ToString()
     Assert.True(success, text)
     Assert.Contains(" more", text) // The tasks not fitting the screen are summarized.
+    // The overall progress counts the resources, not their check and apply tasks.
+    Assert.Contains("0/10", text)
+    Assert.DoesNotContain("/20", text)
 
     // To redraw the display, Spectre moves the cursor from its last line up to its first one.
     let displayHeights = [ for m in Regex.Matches(text, "\u001b" + @"\[(\d+)A") -> int m.Groups[1].Value + 1 ]
@@ -84,7 +87,40 @@ let ``Live display handles more running tasks than it has rows for``(): Task = t
         Assert.True(height <= ConsoleHeight - 10, $"The live display is {height} lines high.")
 
     for i in 1 .. 10 do
-        // Every line erases the previous state of the display before being written over it.
-        Assert.Contains($"\u001b[0JR{i}: done", text)
+        // Every written batch of lines erases the previous state of the display before being written over it. The
+        // first line of a task's log always starts a batch.
+        Assert.Contains($"\u001b[0JR{i}: applying…", text)
+        Assert.Contains($"R{i}: done", text)
         Assert.Contains($"R{i}: applied.", text)
 }
+
+[<Fact>]
+let ``ActiveProgress shows the latest started progress still running``(): unit =
+    let progress = ExecutionUi.ActiveProgress()
+    Assert.True(progress.Shown.IsNone)
+
+    let alpha = progress.Start("Alpha", Some 10L, Items)
+    let beta = progress.Start("Beta", None, Bytes)
+    progress.Report(alpha, 3L)
+    progress.Report(beta, 100L)
+    let shown = Option.get progress.Shown
+    Assert.Equal("Beta", shown.Header)
+    Assert.Equal(100L, shown.Current)
+
+    progress.Stop beta
+    progress.Report(beta, 200L) // Ignored after the progress has stopped.
+    progress.Report(alpha, 7L)
+    let shown = Option.get progress.Shown
+    Assert.Equal("Alpha", shown.Header)
+    Assert.Equal(7L, shown.Current)
+
+    progress.Stop alpha
+    Assert.True(progress.Shown.IsNone)
+
+[<Fact>]
+let ``ActiveProgress keeps showing the latest progress when an earlier one stops``(): unit =
+    let progress = ExecutionUi.ActiveProgress()
+    let alpha = progress.Start("Alpha", Some 10L, Items)
+    let _beta = progress.Start("Beta", Some 20L, Items)
+    progress.Stop alpha
+    Assert.Equal("Beta", (Option.get progress.Shown).Header)

@@ -20,6 +20,7 @@ SPDX-License-Identifier: MIT
         <Compile Include="Console\OrderedLogTests.fs" />
         <Compile Include="Console\TaskExecutorTests.fs" />
         <Compile Include="Core\ResourceTests.fs" />
+        <Compile Include="Resources\DownloadsTests.fs" />
         <Compile Include="Resources\FileTests.fs" />
         <Compile Include="Resources\HostsFileTests.fs" />
         <Compile Include="Resources\WindowsCertificatesTests.fs" />
