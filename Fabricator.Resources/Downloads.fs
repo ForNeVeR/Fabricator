@@ -6,7 +6,10 @@ namespace Fabricator.Resources
 
 open System
 open System.Diagnostics
+open System.IO
 open System.Net.Http
+open System.Threading
+open System.Threading.Tasks
 open Fabricator.Core
 open Fabricator.Resources.Hash
 open Fabricator.Resources.ResourceUtil
@@ -19,17 +22,34 @@ type Downloads =
     /// <param name="expectedHash">The expected SHA-256 hash of the file.</param>
     /// <param name="downloadPath">The path to save the file to.</param>
     /// <param name="dependsOn">The resources this resource depends on.</param>
+    /// <param name="readTimeout">
+    /// The maximum time to wait for the next portion of the file data, after which the download fails. 100 seconds by
+    /// default.
+    /// </param>
     static member downloadFile(
         uri: Uri,
         expectedHash: Sha256Hash,
         downloadPath: AbsolutePath,
-        ?dependsOn: Resource seq
+        ?dependsOn: Resource seq,
+        ?readTimeout: TimeSpan
     ): Resource =
+        let readTimeout = defaultArg readTimeout (TimeSpan.FromSeconds 100.0)
         let calcHash(path: AbsolutePath) = async {
             if not(path.Exists()) then return None
             else
                 let! result = Sha256Hash.OfFile path
                 return Some result
+        }
+
+        // The HttpClient timeout only covers receiving the response headers, so the body reading needs its own.
+        let readChunk (input: Stream) (buffer: byte[]) (ct: CancellationToken): Task<int> = task {
+            try
+                return! input.ReadAsync(buffer, 0, buffer.Length, ct).WaitAsync(readTimeout, ct)
+            with
+            | :? TimeoutException as e ->
+                return raise <| TimeoutException(
+                    $"No data received from {uri} in %.1f{readTimeout.TotalSeconds}s.", e
+                )
         }
 
         {
@@ -65,7 +85,7 @@ type Downloads =
                         let mutable downloadedBytes = 0L
                         let mutable finished = false
                         while not finished do
-                            let! read = Async.AwaitTask <| input.ReadAsync(buffer, 0, buffer.Length, ct)
+                            let! read = Async.AwaitTask(readChunk input buffer ct)
                             if read = 0 then finished <- true
                             else
                                 do! Async.AwaitTask(output.WriteAsync(buffer, 0, read, ct))

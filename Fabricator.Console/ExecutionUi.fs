@@ -9,7 +9,9 @@ module internal Fabricator.Console.ExecutionUi
 open System
 open System.Collections.Concurrent
 open System.Collections.Generic
+open System.Diagnostics
 open System.IO
+open System.Runtime.ExceptionServices
 open System.Threading
 open System.Threading.Channels
 open System.Threading.Tasks
@@ -43,26 +45,32 @@ type IExecutionView =
     abstract StartTask: name: string -> ITaskView
     /// Logs a message of a task that did not run, as if it was started and finished immediately.
     abstract LogInstant: name: string * message: string -> unit
-    /// Notifies that one more task of the execution has finished, whether it has run or not.
-    /// This signal is used by the UI used to increment the finished task counter.
-    abstract TaskFinished: unit -> unit
+    /// Notifies that the processing of one more resource of the execution has finished, whether its tasks have run or
+    /// not. This signal is used by the UI to increment the finished resource counter.
+    abstract ResourceFinished: unit -> unit
 
 /// The console UI.
 type IExecutionUi =
     /// <summary>Shows an execution while the <paramref name="action"/> is running.</summary>
     /// <param name="header">The line written before the execution starts.</param>
     /// <param name="title">The short title of the execution, shown together with its overall progress.</param>
-    /// <param name="totalTasks">The number of tasks in the execution.</param>
+    /// <param name="totalResources">The number of resources processed by the execution.</param>
     /// <param name="action">The execution itself.</param>
-    abstract Run: header: string * title: string * totalTasks: int * action: (IExecutionView -> Async<'a>) -> Async<'a>
+    /// <remarks>
+    /// If writing the output fails, the execution is cancelled, and the returned computation fails with the output
+    /// error after the execution has finished.
+    /// </remarks>
+    abstract Run:
+        header: string * title: string * totalResources: int * action: (IExecutionView -> Async<'a>) -> Async<'a>
     /// Writes a line out of any task's log order, e.g. a message about the execution as a whole.
     abstract WriteLine: line: string -> unit
 
 /// The visual representation of a running task's status and progress.
 type private ITaskRow =
     abstract SetStatus: status: string -> unit
-    /// Starts showing progress; returns the generation number of the progress to pass to the other methods.
-    abstract StartProgress: total: int64 option * progressUnit: ProgressUnit -> int
+    /// Sets the status to the header and starts showing progress; returns the generation number of the progress to pass
+    /// to the other methods.
+    abstract StartProgress: header: string * total: int64 option * progressUnit: ProgressUnit -> int
     abstract ReportProgress: generation: int * current: int64 -> unit
     abstract StopProgress: generation: int -> unit
 
@@ -70,7 +78,7 @@ module private TaskRow =
     let Null = {
         new ITaskRow with
             member _.SetStatus _ = ()
-            member _.StartProgress(_, _) = 0
+            member _.StartProgress(_, _, _) = 0
             member _.ReportProgress(_, _) = ()
             member _.StopProgress _ = ()
     }
@@ -82,8 +90,7 @@ type private TaskReporter(name: string, log: ChannelWriter<string>, row: ITaskRo
         member _.Status newStatus = row.SetStatus newStatus
         member _.Log message = log.TryWrite(prefixed name message) |> ignore
         member _.WithProgress(header, total, progressUnit, action) = async {
-            row.SetStatus header
-            let generation = row.StartProgress(total, progressUnit)
+            let generation = row.StartProgress(header, total, progressUnit)
             let progress = { new IProgressReporter with member _.Report current = row.ReportProgress(generation, current) }
             try
                 return! action progress
@@ -105,14 +112,50 @@ let private completeTask (name: string) (log: ChannelWriter<string>) (finalMessa
     log.TryComplete() |> ignore
 
 /// <summary>Runs the action, then waits for the log to be written out, however the action has ended.</summary>
+/// <param name="log">
+/// The log the action writes to. It is completed after the action has finished, so no new logs can be opened after
+/// that.
+/// </param>
+/// <param name="ct">
+/// The cancellation token of the execution. The action runs with a token linked to it, so it is also cancelled when
+/// the log fails.
+/// </param>
+/// <param name="action">
+/// The action to run; it should open all its logs in <paramref name="log"/> before finishing.
+/// </param>
 /// <remarks>
+/// <para>
+/// If the log fails to be written, the action is cancelled, and, after it has finished, the log error is thrown
+/// (unless the execution has been cancelled via <paramref name="ct"/>).
+/// </para>
+/// <para>
 /// This is a task and not an async computation, because the latter would skip waiting for the log after cancellation.
+/// </para>
 /// </remarks>
 let private runAndFlush (log: OrderedLog) (ct: CancellationToken) (action: Async<'a>): Task<'a> = task {
-    let work = Async.StartAsTask(action, cancellationToken = ct)
+    use cts = CancellationTokenSource.CreateLinkedTokenSource ct
+    let work = Async.StartAsTask(action, cancellationToken = cts.Token)
+    let! first = Task.WhenAny(work :> Task, log.Completion) // Never fails.
+    // The log can only complete before the action by failing.
+    if obj.ReferenceEquals(first, log.Completion) then cts.Cancel()
+
     let! _ = Task.WhenAny work // Never fails.
-    do! log.CompleteAsync()
+    let flush = log.CompleteAsync()
+    let! _ = Task.WhenAny flush // Never fails.
+    if flush.IsFaulted && not ct.IsCancellationRequested then
+        do! flush // Throws the log error.
     return! work
+}
+
+/// Like <see cref="M:Microsoft.FSharp.Control.FSharpAsync.AwaitTask"/>, but fails with the task's own exception instead
+/// of the wrapping <see cref="T:System.AggregateException"/>.
+let private awaitTask(t: Task<'a>): Async<'a> = async {
+    try
+        return! Async.AwaitTask t
+    with
+    | :? AggregateException as e when e.InnerExceptions.Count = 1 ->
+        ExceptionDispatchInfo.Capture(nonNull e.InnerException).Throw()
+        return Unchecked.defaultof<'a> // Unreachable.
 }
 
 /// The UI writing only the ordered log, as plain text.
@@ -123,7 +166,7 @@ type PlainUi(writer: TextWriter) =
         member _.WriteLine line = writer.WriteLine line
         member _.Run(header, _, _, action) = async {
             let! ct = Async.CancellationToken
-            let log = OrderedLog writer.WriteLine
+            let log = OrderedLog(fun lines -> for line in lines do writer.WriteLine line)
             writeInstant log header
             let view = {
                 new IExecutionView with
@@ -136,15 +179,55 @@ type PlainUi(writer: TextWriter) =
                                 member _.Complete finalMessage = completeTask name taskLog finalMessage
                         }
                     member _.LogInstant(name, message) = logInstant log name message
-                    member _.TaskFinished() = ()
+                    member _.ResourceFinished() = ()
             }
-            return! Async.AwaitTask(runAndFlush log ct (action view))
+            return! awaitTask(runAndFlush log ct (action view))
         }
+
+/// A progress shown by a task row.
+type ProgressState =
+    {
+        Header: string
+        Total: int64 option
+        Unit: ProgressUnit
+        mutable Current: int64
+    }
+
+/// <summary>
+/// The progress operations of a task that are currently running (see
+/// <see cref="M:Fabricator.Core.IReporter.WithProgress"/>). Of them, the latest started one is shown.
+/// </summary>
+/// <remarks>Not thread-safe.</remarks>
+type ActiveProgress() =
+    let running = ResizeArray<int * ProgressState>()
+    let mutable lastGeneration = 0
+
+    /// Starts a new progress, which becomes the shown one. Returns its generation number.
+    member _.Start(header: string, total: int64 option, progressUnit: ProgressUnit): int =
+        lastGeneration <- lastGeneration + 1
+        running.Add(lastGeneration, { Header = header; Total = total; Unit = progressUnit; Current = 0L })
+        lastGeneration
+
+    /// Updates the value of the progress, if it is still running.
+    member _.Report(generation: int, current: int64): unit =
+        match running |> Seq.tryFind (fun (g, _) -> g = generation) with
+        | Some(_, state) -> state.Current <- current
+        | None -> ()
+
+    /// Stops the progress. If it was the shown one, the latest started progress of the remaining ones is shown.
+    member _.Stop(generation: int): unit =
+        running.RemoveAll(fun (g, _) -> g = generation) |> ignore
+
+    /// The shown progress: the latest started one still running.
+    member _.Shown: ProgressState option =
+        if running.Count = 0 then None else Some(snd running[running.Count - 1])
 
 /// What the custom columns show for a row of the progress display.
 type private RowInfo() =
     member val ShowBar = false with get, set
     member val ValueText = "" with get, set
+    /// Measures the time since the row's task has started, whether it was visible or not.
+    member val Elapsed = Stopwatch.StartNew()
 
 type private RowInfos = ConcurrentDictionary<ProgressTask, RowInfo>
 
@@ -173,14 +256,27 @@ type private ValueColumn(rows: RowInfos) =
         | true, row -> Text row.ValueText
         | false, _ -> Text.Empty
 
+/// The time since the task has started, which may be earlier than when its row was shown.
+type private ElapsedColumn(rows: RowInfos) =
+    inherit ProgressColumn()
+    let style = ElapsedTimeColumn().Style
+    override _.NoWrap = true
+    override _.GetColumnWidth _ = Nullable 8
+    override _.Render(_, task, _) =
+        match rows.TryGetValue task with
+        | true, row ->
+            let elapsed = row.Elapsed.Elapsed
+            if elapsed.TotalHours >= 100.0 then Text "**:**:**"
+            else Text(elapsed.ToString @"hh\:mm\:ss", style)
+        | false, _ -> Text.Empty
+
 /// The progress bar of a task is scaled to this value, without ever reaching it, so the task never gets finished from
 /// Spectre's point of view (which would stop its spinner and timer).
 let private BarScale = 100.0
 
 type private SpectreRow(name: string) =
     let mutable status = ""
-    let mutable progress: (int64 * int64 option * ProgressUnit) option = None
-    let mutable generation = 0
+    let progress = ActiveProgress()
 
     member val Info = RowInfo()
     member val Task: ProgressTask option = None with get, set
@@ -188,36 +284,42 @@ type private SpectreRow(name: string) =
     member _.Description = if String.IsNullOrEmpty status then name else prefixed name status
 
     member _.Status with set value = status <- value
-    member _.Generation = generation
-    member _.StartProgress(total, progressUnit) =
-        generation <- generation + 1
-        progress <- Some(0L, total, progressUnit)
-        generation
-    member _.Report(current: int64) =
-        progress <- progress |> Option.map (fun (_, total, progressUnit) -> current, total, progressUnit)
-    member _.StopProgress() =
-        progress <- None
+    member _.StartProgress(header, total, progressUnit) =
+        status <- header
+        progress.Start(header, total, progressUnit)
+    member _.Report(generation, current) = progress.Report(generation, current)
+    member _.StopProgress generation =
+        let shownBefore = progress.Shown
+        progress.Stop generation
+        match shownBefore, progress.Shown with
+        | Some before, Some after when not(obj.ReferenceEquals(before, after)) ->
+            // An earlier started progress is shown again, so is its header.
+            status <- after.Header
+        | _ -> ()
 
     /// Copies the state to the display, if the row is visible.
     member this.Refresh() =
-        this.Info.ShowBar <- progress.IsSome
+        let shown = progress.Shown
+        this.Info.ShowBar <- shown.IsSome
         this.Info.ValueText <-
-            match progress with
+            match shown with
             | None -> ""
-            | Some(current, Some total, Items) -> $"{if total > 0L then current * 100L / total else 100L}%%"
-            | Some(current, Some total, Bytes) -> $"{formatBytes current} / {formatBytes total}"
-            | Some(current, None, Items) -> string current
-            | Some(current, None, Bytes) -> formatBytes current
+            | Some { Current = current; Total = Some total; Unit = Items } ->
+                $"{if total > 0L then current * 100L / total else 100L}%%"
+            | Some { Current = current; Total = Some total; Unit = Bytes } ->
+                $"{formatBytes current} / {formatBytes total}"
+            | Some { Current = current; Total = None; Unit = Items } -> string current
+            | Some { Current = current; Total = None; Unit = Bytes } -> formatBytes current
         match this.Task with
         | None -> ()
         | Some task ->
             task.Description <- this.Description
-            match progress with
-            | Some(current, Some total, _) ->
+            match shown with
+            | Some { Current = current; Total = Some total } ->
                 task.IsIndeterminate <- false
                 let fraction = if total > 0L then float current / float total else 1.0
                 task.Value <- min (BarScale * 0.9999) (BarScale * fraction)
-            | Some(_, None, _) ->
+            | Some { Total = None } ->
                 task.IsIndeterminate <- true
                 task.Value <- 0.0
             | None ->
@@ -229,15 +331,15 @@ type private SpectreView(
     rows: RowInfos,
     log: OrderedLog,
     title: string,
-    totalTasks: int,
+    totalResources: int,
     maxRows: unit -> int
 ) =
     let lockObj = obj()
 
-    let overall = ctx.AddTask(title, ProgressTaskSettings(MaxValue = float(max 1 totalTasks)))
-    let overallInfo = RowInfo(ShowBar = true, ValueText = $"0/{totalTasks}")
+    let overall = ctx.AddTask(title, ProgressTaskSettings(MaxValue = float(max 1 totalResources)))
+    let overallInfo = RowInfo(ShowBar = true, ValueText = $"0/{totalResources}")
     do rows[overall] <- overallInfo
-    let mutable finishedTasks = 0
+    let mutable finishedResources = 0
 
     let mutable visibleRows = 0
     let pending = LinkedList<SpectreRow>()
@@ -264,6 +366,16 @@ type private SpectreView(
         visibleRows <- visibleRows + 1
         row.Refresh()
 
+    /// Shows the pending rows, in their starting order, while there is room for them.
+    let promote() =
+        // After the console has shrunk, more rows than allowed might still be visible; they are not hidden, but no
+        // more rows are shown until they finish.
+        while pending.Count > 0 && visibleRows < maxRows() do
+            let next = (nonNull pending.First).Value
+            pending.RemoveFirst()
+            show next
+        updateMoreRow()
+
     let hide(row: SpectreRow) =
         match row.Task with
         | Some task ->
@@ -271,13 +383,8 @@ type private SpectreView(
             rows.TryRemove task |> ignore
             row.Task <- None
             visibleRows <- visibleRows - 1
-            // After the console has shrunk, more rows than allowed might still be visible.
-            if pending.Count > 0 && visibleRows < maxRows() then
-                let next = (nonNull pending.First).Value
-                pending.RemoveFirst()
-                show next
         | None -> pending.Remove row |> ignore
-        updateMoreRow()
+        promote()
 
     let update (row: SpectreRow) (action: unit -> 'a) =
         lock lockObj (fun () ->
@@ -289,21 +396,19 @@ type private SpectreView(
     let createRow(row: SpectreRow) = {
         new ITaskRow with
             member _.SetStatus status = update row (fun () -> row.Status <- status)
-            member _.StartProgress(total, progressUnit) = update row (fun () -> row.StartProgress(total, progressUnit))
-            member _.ReportProgress(generation, current) =
-                update row (fun () -> if row.Generation = generation then row.Report current)
-            member _.StopProgress generation =
-                update row (fun () -> if row.Generation = generation then row.StopProgress())
+            member _.StartProgress(header, total, progressUnit) =
+                update row (fun () -> row.StartProgress(header, total, progressUnit))
+            member _.ReportProgress(generation, current) = update row (fun () -> row.Report(generation, current))
+            member _.StopProgress generation = update row (fun () -> row.StopProgress generation)
     }
 
     interface IExecutionView with
         member _.StartTask name =
             let row = SpectreRow name
             lock lockObj (fun () ->
-                if visibleRows < maxRows() then show row
-                else
-                    pending.AddLast row |> ignore
-                    updateMoreRow()
+                // Even if there is room for the row, the rows started earlier go first.
+                pending.AddLast row |> ignore
+                promote()
             )
             let taskLog = log.Open()
             let reporter = TaskReporter(name, taskLog, createRow row)
@@ -311,28 +416,31 @@ type private SpectreView(
                 new ITaskView with
                     member _.Reporter = reporter
                     member _.Complete finalMessage =
-                        lock lockObj (fun () -> hide row)
-                        completeTask name taskLog finalMessage
+                        try
+                            lock lockObj (fun () -> hide row)
+                        finally
+                            // Even if the display has failed, the log should not hold the next logs back.
+                            completeTask name taskLog finalMessage
             }
 
         member _.LogInstant(name, message) = logInstant log name message
 
-        member _.TaskFinished() =
+        member _.ResourceFinished() =
             lock lockObj (fun () ->
-                finishedTasks <- finishedTasks + 1
-                overallInfo.ValueText <- $"{finishedTasks}/{totalTasks}"
-                overall.Value <- float finishedTasks
+                finishedResources <- finishedResources + 1
+                overallInfo.ValueText <- $"{finishedResources}/{totalResources}"
+                overall.Value <- float finishedResources
             )
 
-/// <summary>A line of text that erases everything below the cursor before being written.</summary>
+/// <summary>Lines of text that erase everything below the cursor before being written.</summary>
 /// <remarks>
-/// To write a line while the live display is shown, Spectre moves the cursor to the top of the display, writes the line
-/// over it, and renders the display again below the line, without erasing the old display. So, the parts of the old
-/// display not covered by the line (e.g. the right part of the overall progress row under the second row of a wrapped
+/// To write lines while the live display is shown, Spectre moves the cursor to the top of the display, writes the lines
+/// over it, and renders the display again below them, without erasing the old display. So, the parts of the old
+/// display not covered by the lines (e.g. the right part of the overall progress row under the second row of a wrapped
 /// line) would stay on the screen.
 /// </remarks>
-type private ClearedLine(text: string) =
-    let text = Text text :> IRenderable
+type private ClearedLines(lines: IReadOnlyList<string>) =
+    let text = Text(String.Join("\n", lines)) :> IRenderable
     interface IRenderable with
         member _.Measure(options, maxWidth) = text.Measure(options, maxWidth)
         member _.Render(options, maxWidth) = seq {
@@ -341,8 +449,9 @@ type private ClearedLine(text: string) =
             Segment.LineBreak
         }
 
-let private writeLine (console: IAnsiConsole) (line: string) =
-    console.Write(ClearedLine line)
+/// Writes the lines at once, so the live display is only redrawn once.
+let private writeLines (console: IAnsiConsole) (lines: IReadOnlyList<string>) =
+    console.Write(ClearedLines lines)
 
 /// The number of the live display rows besides the task rows: the top and bottom padding, the overall progress row,
 /// and the "… and N more" row.
@@ -358,10 +467,10 @@ let maxTaskRows(consoleHeight: int): int =
 /// The UI showing the live progress display on an interactive console, with the ordered log above it.
 type SpectreUi(console: IAnsiConsole) =
     interface IExecutionUi with
-        member _.WriteLine line = writeLine console line
-        member _.Run(header, title, totalTasks, action) = async {
+        member _.WriteLine line = writeLines console [| line |]
+        member _.Run(header, title, totalResources, action) = async {
             let! ct = Async.CancellationToken
-            let log = OrderedLog(writeLine console)
+            let log = OrderedLog(writeLines console)
             writeInstant log header
 
             // Read on every use, to follow the console resizing.
@@ -375,17 +484,19 @@ type SpectreUi(console: IAnsiConsole) =
                         DescriptionColumn(),
                         BarColumn rows,
                         ValueColumn rows,
-                        ElapsedTimeColumn()
+                        ElapsedColumn rows
                     )
             // The log is waited for inside, so it is written out before the live display is cleared.
-            return! Async.AwaitTask(progress.StartAsync(fun ctx ->
-                let view = SpectreView(ctx, rows, log, title, totalTasks, maxRows)
+            return! awaitTask(progress.StartAsync(fun ctx ->
+                let view = SpectreView(ctx, rows, log, title, totalResources, maxRows)
                 runAndFlush log ct (action view)
             ))
         }
 
-/// Chooses the UI for the current console: the live display for interactive terminals, plain text otherwise.
+/// Chooses the UI for the current console: the live display for interactive ANSI terminals, plain text otherwise.
 let forCurrentConsole(): IExecutionUi =
-    if AnsiConsole.Profile.Capabilities.Interactive && not Console.IsOutputRedirected
+    let capabilities = AnsiConsole.Profile.Capabilities
+    // The live display redraws itself via ANSI cursor movements.
+    if capabilities.Interactive && capabilities.Ansi && not Console.IsOutputRedirected
     then SpectreUi AnsiConsole.Console
     else PlainUi Console.Out

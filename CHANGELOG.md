@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `Resource.NoDependencies` for resources without dependencies.
 - `ConcurrencyGroup` and `Resource.Lock`: resources from the same concurrency group are never checked or applied concurrently. `HostsFile.Record` (per hosts file), `Chocolatey.chocolateyPackage` and `DotNetTool.Install` (per installation path) use their own groups, available as `HostsFile.ConcurrencyGroup`, `Chocolatey.ConcurrencyGroup` and `DotNetTool.ConcurrencyGroup`.
 - `IReporter`, `IProgressReporter`, `ProgressUnit` and `ResourceContext` to report the status, progress, and log of resource checks and applications.
+- `Downloads.downloadFile` accepts an optional `readTimeout` (100 seconds by default): the download fails if no data is received for that long.
 - A live progress display in interactive terminals, showing the overall progress of the execution and the running resource checks and applications with their statuses and progress.
 - The logs of resource checks and applications are now printed in order: the lines of different resources are never interleaved.
 - Ctrl+C support in `EntryPoint.main`: on the first Ctrl+C, no new resources are processed, the running ones are notified via their `Async.CancellationToken`, and the program exits with code 2 after all of them have finished. A second Ctrl+C terminates the program immediately.

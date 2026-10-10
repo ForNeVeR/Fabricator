@@ -55,7 +55,7 @@ type DotNetTool =
             }
             Apply = fun ctx -> async {
                 ctx.Reporter.Status $"Installing version {version}"
-                let! execResult =
+                do!
                     runCommand ctx.Reporter "dotnet" [|
                         "tool"
                         "install"
@@ -63,7 +63,7 @@ type DotNetTool =
                         "--version"; version
                         "--tool-path"; installationPath.Value
                     |]
-                if not execResult.Success then failwithf $"Exit code from dotnet tool: {execResult.ExitCode}. Error: {execResult.StandardError}"
+                    |> Async.Ignore
             }
     }
 

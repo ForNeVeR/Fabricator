@@ -5,6 +5,7 @@
 namespace Fabricator.Console
 
 open System
+open System.Collections.Generic
 open System.Threading.Channels
 open System.Threading.Tasks
 
@@ -18,19 +19,24 @@ open System.Threading.Tasks
 /// yet are written as soon as possible, while the lines of the later logs are buffered until all the earlier logs are
 /// completed.
 /// </para>
-/// <para>The sink is only called from a single consumer, so it is never called concurrently.</para>
+/// <para>
+/// The sink receives the lines in batches: all the lines of a log available at the moment are passed in a single call.
+/// The sink is only called from a single consumer, so it is never called concurrently.
+/// </para>
 /// </remarks>
-type internal OrderedLog(sink: string -> unit) =
+type internal OrderedLog(sink: IReadOnlyList<string> -> unit) =
     let logs = Channel.CreateUnbounded<Channel<string>>(UnboundedChannelOptions(SingleReader = true))
 
     let writeAll(log: Channel<string>): Task = task {
         let reader = log.Reader
         while! reader.WaitToReadAsync() do
+            let batch = ResizeArray()
             let mutable reading = true
             while reading do
                 match reader.TryRead() with
-                | true, line -> sink line
+                | true, line -> batch.Add line
                 | false, _ -> reading <- false
+            if batch.Count > 0 then sink batch
     }
 
     let pump: Task = task {
@@ -53,6 +59,13 @@ type internal OrderedLog(sink: string -> unit) =
         if not(logs.Writer.TryWrite log) then
             raise <| InvalidOperationException "The log is already completed, no new logs can be opened."
         log.Writer
+
+    /// <summary>
+    /// Completes after <see cref="M:CompleteAsync"/> has been called and all the logs have been written to the sink.
+    /// Fails as soon as the sink fails, without waiting for <see cref="M:CompleteAsync"/>; no lines are written after
+    /// that.
+    /// </summary>
+    member _.Completion: Task = pump
 
     /// <summary>
     /// Forbids opening new logs, and waits for all the opened logs to be completed and written to the sink. Fails if

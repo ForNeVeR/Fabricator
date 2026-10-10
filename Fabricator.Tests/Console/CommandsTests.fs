@@ -458,3 +458,26 @@ let ``Status and progress reporting is allowed in plain output``(): Task = task 
     Assert.Contains("R: result 42", output)
     Assert.DoesNotContain("Working", output)
 }
+
+/// A writer failing to write the lines containing the passed text.
+type private FailingWriter(failOn: string) =
+    inherit TextWriter()
+    override _.Encoding = Text.Encoding.UTF8
+    override _.WriteLine(value: string | null) =
+        match value with
+        | NonNull line when line.Contains failOn -> raise <| IOException "Output failure."
+        | _ -> ()
+
+[<Fact>]
+let ``Output failure cancels the execution and is reported``(): Task = task {
+    let log = EventLog()
+    let r = FakeResource("R", log)
+    r.OnApply <- fun () -> Async.Sleep(TimeSpan.FromSeconds 30.0)
+
+    let stopwatch = Diagnostics.Stopwatch.StartNew()
+    let ui = ExecutionUi.PlainUi(new FailingWriter "applying")
+    let! ex = Assert.ThrowsAsync<IOException>(fun () -> Commands.apply ui [ r.Resource ] |> Async.StartAsTask :> Task)
+
+    Assert.Equal("Output failure.", ex.Message)
+    Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds 20.0, $"The execution took {stopwatch.Elapsed}.")
+}

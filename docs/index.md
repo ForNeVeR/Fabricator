@@ -27,7 +27,7 @@ When executing the `apply` command, Fabricator will apply each resource's depend
 
 Progress and Logs
 -----------------
-In an interactive terminal, Fabricator shows a live display with the overall progress of the execution and the list of the running resource checks and applications, with the status and progress of each. Below the display, the logs of the checks and applications are printed in order: the log of the earliest started one is shown live, while the logs of the others are buffered until it finishes, so the lines of different resources never interleave. When the output is redirected, only the logs are printed.
+In an interactive terminal, Fabricator shows a live display with the overall progress of the execution and the list of the running resource checks and applications, with the status and progress of each. Above the display, the logs of the checks and applications are printed in order: the log of the earliest started one is shown live, while the logs of the others are buffered until it finishes, so the lines of different resources never interleave. When the output is redirected or the terminal does not support ANSI escape sequences, only the logs are printed.
 
 Resources report their status, progress, and log via the `ResourceContext` passed to `AlreadyApplied` and `Apply`:
 
