@@ -40,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 - The `check` command now reports "Checking the current environment." instead of "Applying changes to the current environment." in the beginning.
 - `HostsFile.Record` no longer puts the entry split from a multi-host line to the beginning of the hosts file: it now goes right after the line it was split from.
+- `DotNetTool.Install` no longer fails to check the tool if the installation path contains no tools or several tools.
 
 ## [0.5.0] - 2026-01-11
 ### Added

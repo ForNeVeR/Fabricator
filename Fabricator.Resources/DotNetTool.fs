@@ -24,38 +24,46 @@ type DotNetTool =
         version: string,
         installationPath: AbsolutePath,
         ?dependsOn: Resource seq
-    ): Resource = {
+    ): Resource =
+        /// The version of the tool installed to the installation path, or None if it is not installed there.
+        let installedVersion(ctx: ResourceContext) = async {
+            if not <| installationPath.ExistsDirectory() then return None else
+            ctx.Reporter.Status "Querying the installed tools"
+            let! execResult =
+                runCommand ctx.Reporter "dotnet" [|
+                    "tool"
+                    "list"
+                    "--tool-path"; installationPath.Value
+                    "--format"; "json"
+                |]
+            let document = JsonNode.Parse(execResult.StandardOutput) |> nonNull
+            let document = document.AsObject()
+            let data = document.["data"] |> nonNull
+            let data = data.AsArray()
+            let packageId = name.ToLowerInvariant()
+            return
+                data
+                |> Seq.map nonNull
+                |> Seq.tryFind (fun entry -> (nonNull entry["packageId"]).AsValue().ToString() = packageId)
+                |> Option.map (fun entry -> (nonNull entry["version"]).AsValue().ToString())
+        }
+
+        let change(installed: string option) =
+            match installed with
+            | None -> NamedChange $"new tool {name} {version}"
+            | Some installed when installed = version -> NoChanges
+            | Some installed -> NamedChange $"tool {name}: {installed} → {version}"
+
+        {
             PresentableName = $"{name} {version}"
             DependsOn = dependencies dependsOn
             Lock = Some(DotNetTool.ConcurrencyGroup installationPath)
             AlreadyApplied = fun ctx -> async {
-                if not <| installationPath.ExistsDirectory() then return NamedChange $"new tool {name} {version}" else
-                ctx.Reporter.Status "Querying the installed tools"
-                let! execResult =
-                    runCommand ctx.Reporter "dotnet" [|
-                        "tool"
-                        "list"
-                        "--tool-path"; installationPath.Value
-                        "--format"; "json"
-                    |]
-                let document = JsonNode.Parse(execResult.StandardOutput) |> nonNull
-                let document = document.AsObject()
-                let data = document.["data"] |> nonNull
-                let data = data.AsArray()
-                let entry = data |> Seq.exactlyOne |> nonNull
-                let packageId = entry["packageId"] |> nonNull
-                let packageId = packageId.AsValue().ToString()
-                let packageVersion = entry["version"] |> nonNull
-                let packageVersion = packageVersion.AsValue().ToString()
-
-                if packageId <> name.ToLowerInvariant()
-                then failwithf $"dotnet tool returned metainfo for unexpected package: {packageId}"
-
-                return
-                    if packageVersion = version then NoChanges
-                    else NamedChange $"tool {name}: {packageVersion} → {version}"
+                let! installed = installedVersion ctx
+                return change installed
             }
             Apply = fun ctx -> async {
+                let! installed = installedVersion ctx
                 ctx.Reporter.Status $"Installing version {version}"
                 do!
                     runCommand ctx.Reporter "dotnet" [|
@@ -66,7 +74,7 @@ type DotNetTool =
                         "--tool-path"; installationPath.Value
                     |]
                     |> Async.Ignore
-                return NamedChange $"tool {name} {version}"
+                return change installed
             }
-    }
+        }
 
