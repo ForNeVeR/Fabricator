@@ -244,6 +244,60 @@ let ``Text diff reports mixed line endings``(): unit =
     let change = TextDiff { Name = "f"; OldText = Some "a\r\nb\n"; NewText = "a\nb\n" }
     Assert.Equal<string seq>([ "--- f"; "+++ f"; "line endings: mixed → LF" ], detailTexts change)
 
+let private diffTexts oldText newText = detailTexts(TextDiff { Name = "f"; OldText = Some oldText; NewText = newText })
+
+[<Fact>]
+let ``Text diff marks the added final line break``(): unit =
+    Assert.Equal<string seq>(
+        [ "--- f"; "+++ f"; "@@ -1,1 +1,2 @@"; "-a"; @"\ No newline at end of file"; "+a"; "+b" ],
+        diffTexts "a" "a\nb\n"
+    )
+
+[<Fact>]
+let ``Text diff marks the removed final line break``(): unit =
+    Assert.Equal<string seq>(
+        [ "--- f"; "+++ f"; "@@ -1,1 +1,1 @@"; "-a"; "+a"; @"\ No newline at end of file" ],
+        diffTexts "a\n" "a"
+    )
+
+[<Fact>]
+let ``Text diff marks the missing final line break of the unchanged last line``(): unit =
+    Assert.Equal<string seq>(
+        [ "--- f"; "+++ f"; "@@ -1,2 +1,2 @@"; "-a"; "+A"; " b"; @"\ No newline at end of file" ],
+        diffTexts "a\nb" "A\nb"
+    )
+
+[<Fact>]
+let ``Text diff of an empty old text adds all the lines``(): unit =
+    let change = TextDiff { Name = "f"; OldText = Some ""; NewText = "a\n" }
+    Assert.Equal<string seq>([ "--- f"; "+++ f"; "@@ -0,0 +1,1 @@"; "+a" ], detailTexts change)
+    Assert.Equal<DetailKind seq>(
+        [ DetailKind.FileHeader; DetailKind.FileHeader; DetailKind.HunkHeader; DetailKind.Added ],
+        detailKinds change
+    )
+
+[<Fact>]
+let ``Text diff of an empty new text removes all the lines``(): unit =
+    let change = TextDiff { Name = "f"; OldText = Some "a\nb"; NewText = "" }
+    Assert.Equal<string seq>(
+        [ "--- f"; "+++ f"; "@@ -1,2 +0,0 @@"; "-a"; "-b"; @"\ No newline at end of file" ],
+        detailTexts change
+    )
+    Assert.Equal<DetailKind seq>(
+        [
+            DetailKind.FileHeader; DetailKind.FileHeader; DetailKind.HunkHeader
+            DetailKind.Removed; DetailKind.Removed; DetailKind.Plain
+        ],
+        detailKinds change
+    )
+
+[<Fact>]
+let ``Text diff splits the lines on CR line breaks``(): unit =
+    Assert.Equal<string seq>(
+        [ "--- f"; "+++ f"; "@@ -1,2 +1,2 @@"; " a"; "-b"; "+B" ],
+        diffTexts "a\rb\r" "a\rB\r"
+    )
+
 [<Fact>]
 let ``New file diff creates the file``(): unit =
     let change = TextDiff { Name = "file.txt"; OldText = None; NewText = "a\r\nb\r\n" }

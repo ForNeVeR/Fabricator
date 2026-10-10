@@ -6,6 +6,8 @@ namespace Fabricator.Console
 
 open System
 open System.Collections.Generic
+open DiffPlex
+open DiffPlex.Chunkers
 open DiffPlex.Renderer
 open Fabricator.Console.Lowering
 open Fabricator.Core
@@ -220,33 +222,54 @@ module internal Report =
     /// Splits the text into lines. Returns the lines and whether the text ends with a line break, which doesn't start
     /// a new line.
     let private splitLines(text: string): string[] * bool =
-        let endsWithLineBreak = text.EndsWith '\n'
-        let text = if endsWithLineBreak then text.Substring(0, text.Length - 1) else text
-        let lines =
-            if text.Length = 0 && endsWithLineBreak then Seq.singleton ""
-            elif text.Length = 0 then []
-            else text.Split '\n' |> Seq.map _.TrimEnd('\r')
-        lines |> Seq.toArray, endsWithLineBreak
+        if text.Length = 0 then [||], false
+        else
+            let lines = text.Split([| "\r\n"; "\r"; "\n" |], StringSplitOptions.None)
+            let endsWithLineBreak = text.EndsWith '\n' || text.EndsWith '\r'
+            (if endsWithLineBreak then Array.take (lines.Length - 1) lines else lines), endsWithLineBreak
 
     let private noFinalLineBreakMarker = @"\ No newline at end of file"
 
     let private line (kind: DetailKind) (text: string) = { Text = text; Kind = kind }
 
-    let private newFilePatch (name: string) (text: string): DetailLine seq =
+    /// A patch adding (<see cref="F:Fabricator.Console.DetailKind.Added"/>) or removing
+    /// (<see cref="F:Fabricator.Console.DetailKind.Removed"/>) all the lines of the text.
+    let private wholeTextPatch (oldHeader: string) (newHeader: string) (kind: DetailKind) (text: string) =
         let lines, endsWithLineBreak = splitLines text
+        let hunkHeader, prefix =
+            if kind = DetailKind.Added
+            then $"@@ -0,0 +1,{lines.Length} @@", "+"
+            else $"@@ -1,{lines.Length} +0,0 @@", "-"
         seq {
-            yield line DetailKind.FileHeader "--- /dev/null"
-            yield line DetailKind.FileHeader $"+++ {name} (new)"
+            yield line DetailKind.FileHeader oldHeader
+            yield line DetailKind.FileHeader newHeader
             if not <| Array.isEmpty lines then
-                yield line DetailKind.HunkHeader $"@@ -0,0 +1,{lines.Length} @@"
-                yield! lines |> Seq.map (fun l -> line DetailKind.Added ("+" + l))
+                yield line DetailKind.HunkHeader hunkHeader
+                yield! lines |> Seq.map (fun l -> line kind (prefix + l))
                 if not endsWithLineBreak then yield line DetailKind.Plain noFinalLineBreakMarker
         }
 
-    let private trimFinalLineBreak(text: string) =
-        if text.EndsWith "\r\n" then text.Substring(0, text.Length - 2)
-        elif text.EndsWith '\n' then text.Substring(0, text.Length - 1)
-        else text
+    let private newFilePatch (name: string) (text: string): DetailLine seq =
+        wholeTextPatch "--- /dev/null" $"+++ {name} (new)" DetailKind.Added text
+
+    /// <summary>
+    /// Marks the last line of a text without the final line break, so it differs from the same line with the line
+    /// break. Texts decoded from files never contain it, since they are considered binary otherwise.
+    /// </summary>
+    let private noFinalLineBreakSentinel = '\u0000'
+
+    /// <summary>
+    /// Splits the text into lines without their endings, unlike the default DiffPlex chunker keeping the missing final
+    /// line break as a <see cref="F:Fabricator.Console.Report.noFinalLineBreakSentinel"/>.
+    /// </summary>
+    let private lineChunker = {
+        new IChunker with
+            member _.Chunk text =
+                let lines, endsWithLineBreak = splitLines text
+                if not endsWithLineBreak && lines.Length > 0 then
+                    lines[lines.Length - 1] <- lines[lines.Length - 1] + string noFinalLineBreakSentinel
+                lines
+    }
 
     /// The line ending style of the text, or None if it has no line breaks.
     let private lineEnding(text: string): string option =
@@ -264,21 +287,18 @@ module internal Report =
         | [ style, _ ] -> Some style
         | _ -> Some "mixed"
 
-    let private changedFilePatch (name: string) (oldText: string) (newText: string): DetailLine seq =
-        let oldLineEnding, newLineEnding = lineEnding oldText, lineEnding newText
-        // DiffPlex presents the final line break as an additional empty line, so it is removed when both texts have it.
-        let oldText, newText =
-            if oldText.EndsWith '\n' && newText.EndsWith '\n'
-            then trimFinalLineBreak oldText, trimFinalLineBreak newText
-            else oldText, newText
-        // DiffPlex compares the lines ignoring their endings, and produces no patch at all if only they differ.
-        let patch = UnidiffRenderer.GenerateUnidiff(oldText, newText, name, name, ignoreWhitespace = false)
-        let patchLines = splitLines patch |> fst
+    let private fileHeaders(name: string) = $"--- {name}", $"+++ {name}"
+
+    let private diffPatch (name: string) (oldText: string) (newText: string): DetailLine seq =
+        let oldHeader, newHeader = fileHeaders name
+        // The lines are compared ignoring their endings, so no hunks are produced if only they differ.
+        let diff = Differ.Instance.CreateDiffs(oldText, newText, false, false, lineChunker)
+        let patchLines = UnidiffRenderer().Generate(diff, name, name) |> splitLines |> fst
         let hunkLines = patchLines |> Array.skip(min 2 patchLines.Length)
         seq {
-            yield line DetailKind.FileHeader $"--- {name}"
-            yield line DetailKind.FileHeader $"+++ {name}"
-            match oldLineEnding, newLineEnding with
+            yield line DetailKind.FileHeader oldHeader
+            yield line DetailKind.FileHeader newHeader
+            match lineEnding oldText, lineEnding newText with
             | Some oldStyle, Some newStyle when oldStyle <> newStyle ->
                 yield line DetailKind.Plain $"line endings: {oldStyle} → {newStyle}"
             | _ -> ()
@@ -288,8 +308,19 @@ module internal Report =
                     elif text.StartsWith '+' then DetailKind.Added
                     elif text.StartsWith '-' then DetailKind.Removed
                     else DetailKind.Plain
-                yield line kind text
+                if text.EndsWith noFinalLineBreakSentinel then
+                    yield line kind (text.TrimEnd noFinalLineBreakSentinel)
+                    yield line DetailKind.Plain noFinalLineBreakMarker
+                else
+                    yield line kind text
         }
+
+    let private changedFilePatch (name: string) (oldText: string) (newText: string): DetailLine seq =
+        let oldHeader, newHeader = fileHeaders name
+        // DiffPlex numbers the hunks of an empty text from line 1 instead of 0.
+        if oldText.Length = 0 then wholeTextPatch oldHeader newHeader DetailKind.Added newText
+        elif newText.Length = 0 then wholeTextPatch oldHeader newHeader DetailKind.Removed oldText
+        else diffPatch name oldText newText
 
     /// The lines describing the change, to show under the report line.
     let details(change: ResourceChange): DetailLine seq =
