@@ -59,12 +59,13 @@ let ``PresentableName returns correct format``(): Task = task {
 }
 
 [<Fact>]
-let ``AlreadyApplied returns false when host file does not exist``(): Task = task {
+let ``AlreadyApplied fails when hosts file does not exist``(): Task = task {
     let tempPath = Temporary.CreateTempFile()
     tempPath.Delete() // Delete to make it non-existent
     let resource = HostsFile.Record("127.0.0.1", "example.com", tempPath)
-    let! result = resource.AlreadyApplied ResourceContext.Null
-    Assert.NotEqual(NoChanges, result)
+    let! ex =
+        Assert.ThrowsAsync<Exception>(fun () -> Async.StartAsTask(resource.AlreadyApplied ResourceContext.Null) :> Task)
+    Assert.Contains("Hosts file not found", ex.Message)
 }
 
 [<Fact>]

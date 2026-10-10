@@ -115,6 +115,11 @@ type HostsFile =
                 // Add new entry at the end
                 Array.append lines [| $"{ipAddress} {host}" |]
 
+        // The file is never created, so a mistyped path fails instead of producing a stray file.
+        let ensureExists() =
+            if not (filePath.Exists()) then
+                failwithf $"Hosts file not found at \"{filePath.Value}\". Ensure the file exists or specify a valid path using the hostsFilePath parameter."
+
         let linesChange (oldLines: string[]) (newLines: string[]) =
             let text (lines: string[]) = lines |> Seq.map (fun l -> l + "\n") |> String.concat ""
             Diffs.textChange filePath.Value (Some(text oldLines)) (text newLines)
@@ -125,21 +130,15 @@ type HostsFile =
             Lock = Some(HostsFile.ConcurrencyGroup filePath)
 
             AlreadyApplied = fun _ -> async {
-                if not (filePath.Exists()) then
-                    return NamedChange $"new entry \"{ipAddress} {host}\" in \"{filePath.Value}\""
-                else
-                    let! ct = Async.CancellationToken
-                    let! lines = Async.AwaitTask <| filePath.ReadAllLinesAsync(ct)
-                    return linesChange lines (computeNewLines lines)
+                ensureExists()
+                let! ct = Async.CancellationToken
+                let! lines = Async.AwaitTask <| filePath.ReadAllLinesAsync(ct)
+                return linesChange lines (computeNewLines lines)
             }
 
             Apply = fun ctx -> async {
                 let! ct = Async.CancellationToken
-
-                // Ensure the file exists
-                if not (filePath.Exists()) then
-                    failwithf $"Hosts file not found at \"{filePath.Value}\". Ensure the file exists or specify a valid path using the hostsFilePath parameter."
-
+                ensureExists()
                 let! lines = Async.AwaitTask <| filePath.ReadAllLinesAsync(ct)
                 let newLines = computeNewLines lines
 

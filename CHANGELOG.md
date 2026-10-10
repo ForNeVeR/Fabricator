@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **(Breaking change!)** `Resource.AlreadyApplied` and `Resource.Apply` now return a `ResourceChange` instead of `bool` and `unit`: `AlreadyApplied` returns `NoChanges` if the resource is already applied, or the change required to apply it otherwise; `Apply` returns the change it has made. A change is either a `TextDiff`, a human-readable `NamedChange`, or `ChangeWithNoDescription`.
 - The output of the external commands run by `Chocolatey.chocolateyPackage` and `DotNetTool.Install` is now streamed to the resource log.
 - `Downloads.downloadFile` no longer buffers the whole file in memory before saving it, and reports the download progress.
+- The check of `HostsFile.Record` now fails if the hosts file does not exist, same as its application (previously, the resource was reported as not applied).
 
 ### Added
 - All the bundled resources accept an optional `dependsOn` parameter to declare their dependencies.
