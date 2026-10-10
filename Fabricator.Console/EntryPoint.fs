@@ -47,6 +47,45 @@ let private runCancellable (ui: ExecutionUi.IExecutionUi) (command: Async<'a>): 
     finally
         Console.CancelKeyPress.RemoveHandler onCancelKeyPress
 
+/// Writes the report. Returns false if writing the output has failed.
+let private tryWriteReport (ui: ExecutionUi.IExecutionUi) (report: Report): bool =
+    try
+        ui.WriteReport report
+        true
+    with
+    | ex ->
+        eprintfn $"Failed to write the report: {ex}"
+        false
+
+/// Like <see cref="M:Fabricator.Console.EntryPoint.main"/>, but with the passed UI.
+let internal run (ui: ExecutionUi.IExecutionUi) (args: string seq) (resources: Resource seq): int =
+    let args = Seq.toArray args
+    let args =
+        if args.Length > 0 && args[0].EndsWith ".fsx"
+        then Array.skip 1 args
+        else args
+
+    match args with
+    | [|"apply"|] ->
+        match apply ui resources |> runCancellable ui with
+        | Some report ->
+            if not(tryWriteReport ui report) then ExitCodes.ExecutionError
+            elif Report.isSuccessful report then ExitCodes.Success
+            else ExitCodes.ExecutionError
+        | None -> ExitCodes.ExecutionError
+    | [|"check"|] ->
+        match check ui resources |> runCancellable ui with
+        | Some report ->
+            if not(tryWriteReport ui report) then ExitCodes.ExecutionError
+            else
+                match Report.checkStatus report with
+                | AllApplied -> ExitCodes.Success
+                | NotAllApplied -> ExitCodes.NotAllApplied
+                | CheckError -> ExitCodes.ExecutionError
+        | None -> ExitCodes.ExecutionError
+    | [|"--help"|] -> printUsage(); ExitCodes.Success
+    | _ -> printUsage(); ExitCodes.InvalidArgs
+
 /// <summary>Performs tasks on the passed resources according to the passed arguments.</summary>
 /// <remarks>
 /// <para>
@@ -61,35 +100,11 @@ let private runCancellable (ui: ExecutionUi.IExecutionUi) (command: Async<'a>): 
 /// </para>
 /// <para>
 /// After the execution has finished (unless it was cancelled), a report listing every processed resource with its
-/// final state is printed.
+/// final state is printed. If the output fails, the execution ends with an error.
 /// </para>
 /// </remarks>
 /// <param name="args">The command-line arguments.</param>
 /// <param name="resources">The root resources, i.e., the resources describing the desired environment state.</param>
 /// <returns>The process exit code.</returns>
 let main (args: string seq) (resources: Resource seq): int =
-    let args = Seq.toArray args
-    let args =
-        if args.Length > 0 && args[0].EndsWith ".fsx"
-        then Array.skip 1 args
-        else args
-
-    let ui = ExecutionUi.forCurrentConsole()
-    match args with
-    | [|"apply"|] ->
-        match apply ui resources |> runCancellable ui with
-        | Some report ->
-            ui.WriteReport report
-            if Report.isSuccessful report then ExitCodes.Success else ExitCodes.ExecutionError
-        | None -> ExitCodes.ExecutionError
-    | [|"check"|] ->
-        match check ui resources |> runCancellable ui with
-        | Some report ->
-            ui.WriteReport report
-            match Report.checkStatus report with
-            | AllApplied -> ExitCodes.Success
-            | NotAllApplied -> ExitCodes.NotAllApplied
-            | CheckError -> ExitCodes.ExecutionError
-        | None -> ExitCodes.ExecutionError
-    | [|"--help"|] -> printUsage(); ExitCodes.Success
-    | _ -> printUsage(); ExitCodes.InvalidArgs
+    run (ExecutionUi.forCurrentConsole()) args resources

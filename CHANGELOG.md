@@ -31,7 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `Downloads.downloadFile` accepts an optional `readTimeout` (100 seconds by default): the download fails if no data is received for that long.
 - A live progress display in interactive terminals, showing the overall progress of the execution and the running resource checks and applications with their statuses and progress.
 - The logs of resource checks and applications are now printed in order: the lines of different resources are never interleaved.
-- After `check` and `apply` have finished, a report listing every processed resource with its final state (already applied, not applied, applied, skipped, or failed) is printed. The states are marked with emoji, or with `[=]`/`[x]` if the output doesn't support Unicode.
+- After `check` and `apply` have finished, a report listing every processed resource with its final state (already applied, not applied, applied, skipped, or failed) is printed. The states are marked with emoji, or with ASCII markers (`[=]`, `[ ]`, `[x]`, `[-]`, `[!]`) if the output doesn't support Unicode.
 - Ctrl+C support in `EntryPoint.main`: on the first Ctrl+C, no new resources are processed, the running ones are notified via their `Async.CancellationToken`, and the program exits with code 2 after all of them have finished. A second Ctrl+C terminates the program immediately.
 
 ### Fixed

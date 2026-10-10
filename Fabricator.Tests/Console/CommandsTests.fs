@@ -122,7 +122,7 @@ let ``Check error is reported and does not prevent other checks``(): Task = task
 
     Assert.Equal(CheckError, status)
     assertEvents [ "check R"; "check D" ] log
-    assertStates [ "D", ReportItemState.NotApplied; "R", ReportItemState.CheckFailed ] report
+    assertStates [ "D", ReportItemState.NotApplied; "R", ReportItemState.CheckErrored ] report
     Assert.Contains("R: error:", output)
     Assert.Contains("Check failure", output)
     Assert.Contains("D: not applied.", output)
@@ -294,7 +294,7 @@ let ``Failed dependency blocks its dependents but not the independent resources`
 
     Assert.False success
     assertStates [
-        "D", ReportItemState.ApplyFailed
+        "D", ReportItemState.ApplyErrored
         "R", ReportItemState.Skipped
         "Independent", ReportItemState.Applied
     ] report
@@ -316,7 +316,7 @@ let ``Dependency check error blocks the dependent application``(): Task = task {
 
     Assert.False success
     assertEvents [ "check D" ] log
-    assertStates [ "D", ReportItemState.CheckFailed; "R", ReportItemState.Skipped ] report
+    assertStates [ "D", ReportItemState.CheckErrored; "R", ReportItemState.Skipped ] report
     Assert.Contains("R: skipped because a dependency has failed.", output)
 }
 
@@ -331,7 +331,7 @@ let ``Root check error fails the application but dependencies are still applied`
 
     Assert.False success
     assertEvents [ "check R"; "check D"; "apply D" ] log
-    assertStates [ "D", ReportItemState.Applied; "R", ReportItemState.CheckFailed ] report
+    assertStates [ "D", ReportItemState.Applied; "R", ReportItemState.CheckErrored ] report
     assertBefore "apply D" "check R" log
     Assert.DoesNotContain("skipped", output)
 }

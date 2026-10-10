@@ -129,7 +129,7 @@ let private sampleReport = {
     Items = [
         { ResourceName = "Copy file a.txt to b.txt"; State = ReportItemState.AlreadyApplied }
         { ResourceName = "Deploy [service]"; State = ReportItemState.Applied }
-        { ResourceName = "Install tool"; State = ReportItemState.ApplyFailed }
+        { ResourceName = "Install tool"; State = ReportItemState.ApplyErrored }
     ]
 }
 
@@ -141,7 +141,7 @@ let private sampleReportLines(useEmoji: bool) =
     ] else [
         "[=] Copy file a.txt to b.txt (already applied)"
         "[x] Deploy [service] (applied)"
-        "[x] Install tool (failed to apply)"
+        "[!] Install tool (failed to apply)"
     ]
 
 let private lines(text: string) =
@@ -152,9 +152,20 @@ type private AsciiWriter() =
     inherit StringWriter()
     override _.Encoding = System.Text.Encoding.ASCII
 
+/// A writer with the UTF-8 encoding.
+type private Utf8Writer() =
+    inherit StringWriter()
+    override _.Encoding = System.Text.Encoding.UTF8
+
 [<Fact>]
 let ``Plain UI writes the report with emoji to a Unicode writer``(): unit =
     use output = new StringWriter()
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport sampleReport
+    Assert.Equal<string list>(sampleReportLines true, lines(output.ToString()))
+
+[<Fact>]
+let ``Plain UI writes the report with emoji to a UTF-8 writer``(): unit =
+    use output = new Utf8Writer()
     (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport sampleReport
     Assert.Equal<string list>(sampleReportLines true, lines(output.ToString()))
 

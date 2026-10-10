@@ -40,7 +40,7 @@ let ``Check outcomes are mapped to the report states``(): unit =
         [
             "A", ReportItemState.AlreadyApplied
             "B", ReportItemState.NotApplied
-            "C", ReportItemState.CheckFailed
+            "C", ReportItemState.CheckErrored
             "D", ReportItemState.Skipped
         ],
         states report
@@ -61,8 +61,8 @@ let ``Apply outcomes are mapped to the report states``(): unit =
         [
             "A", ReportItemState.AlreadyApplied
             "B", ReportItemState.Applied
-            "C", ReportItemState.ApplyFailed
-            "D", ReportItemState.CheckFailed
+            "C", ReportItemState.ApplyErrored
+            "D", ReportItemState.CheckErrored
             "E", ReportItemState.Skipped
         ],
         states report
@@ -111,14 +111,14 @@ let ``Report with non-applied resources is not fully applied``(): unit =
 
 [<Theory>]
 [<InlineData "Skipped">]
-[<InlineData "CheckFailed">]
-[<InlineData "ApplyFailed">]
+[<InlineData "CheckErrored">]
+[<InlineData "ApplyErrored">]
 let ``Report with a failure is not successful``(failure: string): unit =
     let failure =
         match failure with
         | "Skipped" -> ReportItemState.Skipped
-        | "CheckFailed" -> ReportItemState.CheckFailed
-        | _ -> ReportItemState.ApplyFailed
+        | "CheckErrored" -> ReportItemState.CheckErrored
+        | _ -> ReportItemState.ApplyErrored
     let report = reportOf [ ReportItemState.NotApplied; failure; ReportItemState.Applied ]
     Assert.False(Report.isSuccessful report)
     Assert.Equal(CheckError, Report.checkStatus report)
@@ -130,15 +130,34 @@ let ``Report lines are formatted with emoji``(): unit =
     Assert.Equal("🟡 R (not applied)", line ReportItemState.NotApplied)
     Assert.Equal("✅ R (applied)", line ReportItemState.Applied)
     Assert.Equal("⏩ R (skipped: a dependency has failed)", line ReportItemState.Skipped)
-    Assert.Equal("❌ R (failed to check)", line ReportItemState.CheckFailed)
-    Assert.Equal("❌ R (failed to apply)", line ReportItemState.ApplyFailed)
+    Assert.Equal("❌ R (failed to check)", line ReportItemState.CheckErrored)
+    Assert.Equal("❌ R (failed to apply)", line ReportItemState.ApplyErrored)
 
 [<Fact>]
 let ``Report lines are formatted in ASCII``(): unit =
     let line state = Report.formatLine false { ResourceName = "R"; State = state }
     Assert.Equal("[=] R (already applied)", line ReportItemState.AlreadyApplied)
-    Assert.Equal("[x] R (not applied)", line ReportItemState.NotApplied)
+    Assert.Equal("[ ] R (not applied)", line ReportItemState.NotApplied)
     Assert.Equal("[x] R (applied)", line ReportItemState.Applied)
-    Assert.Equal("[=] R (skipped: a dependency has failed)", line ReportItemState.Skipped)
-    Assert.Equal("[x] R (failed to check)", line ReportItemState.CheckFailed)
-    Assert.Equal("[x] R (failed to apply)", line ReportItemState.ApplyFailed)
+    Assert.Equal("[-] R (skipped: a dependency has failed)", line ReportItemState.Skipped)
+    Assert.Equal("[!] R (failed to check)", line ReportItemState.CheckErrored)
+    Assert.Equal("[!] R (failed to apply)", line ReportItemState.ApplyErrored)
+
+[<Theory>]
+[<InlineData true>]
+[<InlineData false>]
+let ``Report markers are distinct for every state except errors``(useEmoji: bool): unit =
+    let markers =
+        [
+            ReportItemState.AlreadyApplied
+            ReportItemState.NotApplied
+            ReportItemState.Applied
+            ReportItemState.Skipped
+            ReportItemState.CheckErrored
+        ]
+        |> List.map (Report.marker useEmoji)
+    Assert.Equal(markers.Length, (List.distinct markers).Length)
+    Assert.Equal(
+        Report.marker useEmoji ReportItemState.CheckErrored,
+        Report.marker useEmoji ReportItemState.ApplyErrored
+    )

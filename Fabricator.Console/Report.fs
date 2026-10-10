@@ -21,10 +21,10 @@ type internal ReportItemState =
     | Applied
     /// The resource was not processed because some of its dependencies have failed.
     | Skipped
-    /// The resource check has failed with an error.
-    | CheckFailed
-    /// The resource application has failed with an error.
-    | ApplyFailed
+    /// The resource check has thrown an error.
+    | CheckErrored
+    /// The resource application has thrown an error.
+    | ApplyErrored
 
 /// A line of the report: a resource and its final state.
 type internal ReportItem =
@@ -72,7 +72,7 @@ module internal Report =
         match outcome with
         | CheckPassed -> ReportItemState.AlreadyApplied
         | CheckFailed -> ReportItemState.NotApplied
-        | Errored _ -> ReportItemState.CheckFailed
+        | Errored _ -> ReportItemState.CheckErrored
         | Blocked -> ReportItemState.Skipped
         | Applied | NotRequired -> unexpected resource outcome
 
@@ -80,8 +80,8 @@ module internal Report =
         match checkOutcome, applyOutcome with
         | CheckPassed, NotRequired -> ReportItemState.AlreadyApplied
         | CheckFailed, Applied -> ReportItemState.Applied
-        | CheckFailed, Errored _ -> ReportItemState.ApplyFailed
-        | Errored _, Blocked -> ReportItemState.CheckFailed
+        | CheckFailed, Errored _ -> ReportItemState.ApplyErrored
+        | Errored _, Blocked -> ReportItemState.CheckErrored
         | Blocked, Blocked -> ReportItemState.Skipped
         | _ -> unexpected resource (checkOutcome, applyOutcome)
 
@@ -109,7 +109,7 @@ module internal Report =
         }
 
     let private isFailure = function
-        | ReportItemState.Skipped | ReportItemState.CheckFailed | ReportItemState.ApplyFailed -> true
+        | ReportItemState.Skipped | ReportItemState.CheckErrored | ReportItemState.ApplyErrored -> true
         | ReportItemState.AlreadyApplied | ReportItemState.NotApplied | ReportItemState.Applied -> false
 
     /// Whether all the resources have been processed without failures.
@@ -128,10 +128,10 @@ module internal Report =
     let marker (useEmoji: bool) (state: ReportItemState): string =
         match state with
         | ReportItemState.AlreadyApplied -> if useEmoji then "➖" else "[=]"
-        | ReportItemState.NotApplied -> if useEmoji then "🟡" else "[x]"
+        | ReportItemState.NotApplied -> if useEmoji then "🟡" else "[ ]"
         | ReportItemState.Applied -> if useEmoji then "✅" else "[x]"
-        | ReportItemState.Skipped -> if useEmoji then "⏩" else "[=]"
-        | ReportItemState.CheckFailed | ReportItemState.ApplyFailed -> if useEmoji then "❌" else "[x]"
+        | ReportItemState.Skipped -> if useEmoji then "⏩" else "[-]"
+        | ReportItemState.CheckErrored | ReportItemState.ApplyErrored -> if useEmoji then "❌" else "[!]"
 
     /// The color of the marker, for the consoles supporting colors.
     let color(state: ReportItemState): Color =
@@ -139,7 +139,7 @@ module internal Report =
         | ReportItemState.AlreadyApplied | ReportItemState.Skipped -> Color.Grey
         | ReportItemState.NotApplied -> Color.Yellow
         | ReportItemState.Applied -> Color.Green
-        | ReportItemState.CheckFailed | ReportItemState.ApplyFailed -> Color.Red
+        | ReportItemState.CheckErrored | ReportItemState.ApplyErrored -> Color.Red
 
     /// The description of the state shown after the resource name.
     let annotation(state: ReportItemState): string =
@@ -148,8 +148,8 @@ module internal Report =
         | ReportItemState.NotApplied -> "not applied"
         | ReportItemState.Applied -> "applied"
         | ReportItemState.Skipped -> "skipped: a dependency has failed"
-        | ReportItemState.CheckFailed -> "failed to check"
-        | ReportItemState.ApplyFailed -> "failed to apply"
+        | ReportItemState.CheckErrored -> "failed to check"
+        | ReportItemState.ApplyErrored -> "failed to apply"
 
     /// The text of the report line after the marker.
     let description(item: ReportItem): string =

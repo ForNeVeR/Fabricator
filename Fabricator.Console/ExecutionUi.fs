@@ -160,15 +160,14 @@ let private awaitTask(t: Task<'a>): Async<'a> = async {
         return Unchecked.defaultof<'a> // Unreachable.
 }
 
-/// Whether the encoding is able to represent any Unicode character, including emoji.
-let private isUnicode(encoding: System.Text.Encoding) =
-    match encoding.CodePage with
-    | 65001 | 1200 | 1201 | 12000 | 12001 -> true // UTF-8, UTF-16 (LE, BE), UTF-32 (LE, BE).
-    | _ -> false
+/// Whether the writer supports Unicode, as detected by Spectre, so it agrees with <see cref="T:SpectreUi"/>.
+let private isUnicode(writer: TextWriter) =
+    let console = AnsiConsole.Create(AnsiConsoleSettings(Out = AnsiConsoleOutput writer))
+    console.Profile.Capabilities.Unicode
 
 /// The UI writing only the ordered log, as plain text.
 type PlainUi(writer: TextWriter) =
-    let useEmoji = isUnicode writer.Encoding
+    let useEmoji = isUnicode writer
     let writer = TextWriter.Synchronized writer
 
     interface IExecutionUi with
