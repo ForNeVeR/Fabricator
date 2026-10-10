@@ -99,6 +99,23 @@ let ``AlreadyApplied returns the creation diff when the target is missing``(): T
 }
 
 [<Fact>]
+let ``Apply describes a large file update by the sizes, same as AlreadyApplied``(): Task = upcast task {
+    let targetPath = Path.GetTempFileName()
+    try
+        do! File.WriteAllTextAsync(targetPath, "old")
+        let size = Diffs.MaxTextDiffSize + 1L
+        let resource = file(GeneratedContent("content", fun () -> Array.create (int size) (byte 'a')), targetPath)
+        let expected = NamedChange $"file update \"{targetPath}\", 3 bytes → {size} bytes"
+        let! planned = resource.AlreadyApplied ResourceContext.Null
+        let! made = resource.Apply ResourceContext.Null
+        Assert.Equal(expected, planned)
+        Assert.Equal(expected, made)
+        Assert.Equal(size, FileInfo(targetPath).Length)
+    finally
+        File.Delete targetPath
+}
+
+[<Fact>]
 let ``Apply returns the creation diff for a new target file``(): Task = upcast task {
     let targetPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())
     try

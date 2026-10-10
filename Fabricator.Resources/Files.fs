@@ -83,11 +83,21 @@ type Files =
             }
             Apply = fun ctx -> async {
                 ctx.Reporter.Status "Reading the content"
-                let! existingContent = readExistingContent()
                 let! content = getContent source
+                let! change = async {
+                    let target = FileInfo targetAbsolutePath
+                    let existingSize = if target.Exists then Some target.Length else None
+                    // The existing content is only read if the change is going to be shown as a diff.
+                    if int64 content.Length > Diffs.MaxTextDiffSize
+                       || existingSize |> Option.exists (fun size -> size > Diffs.MaxTextDiffSize) then
+                        return Diffs.sizeChange targetAbsolutePath existingSize content.Length
+                    else
+                        let! existingContent = readExistingContent()
+                        return Diffs.fileChange targetAbsolutePath existingContent content
+                }
                 ctx.Reporter.Status $"Writing to \"{targetAbsolutePath}\""
                 do! writeAllBytesAsync targetAbsolutePath content
-                return Diffs.fileChange targetAbsolutePath existingContent content
+                return change
             }
         }
 
