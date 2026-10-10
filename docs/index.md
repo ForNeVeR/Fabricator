@@ -64,6 +64,8 @@ Apply = fun _ -> async {
 }
 ```
 
+The report ends with a short summary of the number of resources in each state, e.g. `3 already applied, 2 to apply, 1 errored`.
+
 To only print the resource states without the change details, pass the `--brief` flag, e.g. `dotnet fsi ./script.fsx check --brief`.
 
 Packages

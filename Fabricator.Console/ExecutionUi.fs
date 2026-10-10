@@ -182,6 +182,8 @@ type PlainUi(writer: TextWriter) =
                     if showChanges then
                         for detail in Report.details item.Change do
                             writer.WriteLine(Report.detailIndent + detail.Text)
+                writer.WriteLine()
+                writer.WriteLine(Report.formatSummary report)
         member _.Run(header, _, _, action) = async {
             let! ct = Async.CancellationToken
             let log = OrderedLog(fun lines -> for line in lines do writer.WriteLine line)
@@ -503,6 +505,12 @@ type SpectreUi(console: IAnsiConsole) =
                                 .Append(detail.Text, Report.detailStyle detail.Kind)
                                 .Append "\n"
                             |> ignore
+                paragraph.Append "\n" |> ignore
+                Report.summary report |> List.iteri (fun i part ->
+                    if i > 0 then paragraph.Append ", " |> ignore
+                    paragraph.Append(part.Text, Style(Report.color part.State)) |> ignore
+                )
+                paragraph.Append "\n" |> ignore
                 console.Write paragraph
         member _.Run(header, title, totalResources, action) = async {
             let! ct = Async.CancellationToken

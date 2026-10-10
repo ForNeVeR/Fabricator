@@ -138,10 +138,12 @@ let private sampleReportLines(useEmoji: bool) =
         "➖ Copy file a.txt to b.txt (already applied)"
         "✅ Deploy [service] (applied)"
         "❌ Install tool (failed to apply)"
+        "1 already applied, 1 applied, 1 errored"
     ] else [
         "[=] Copy file a.txt to b.txt (already applied)"
         "[x] Deploy [service] (applied)"
         "[!] Install tool (failed to apply)"
+        "1 already applied, 1 applied, 1 errored"
     ]
 
 let private lines(text: string) =
@@ -213,12 +215,14 @@ let private reportWithChangesLines = [
     "    -a"
     "    +b"
     "[ ] Silent (not applied)"
+    "2 to apply, 1 applied"
 ]
 
 let private briefReportWithChangesLines = [
     "[ ] Service (not applied)"
     "[x] File (applied)"
     "[ ] Silent (not applied)"
+    "2 to apply, 1 applied"
 ]
 
 [<Fact>]

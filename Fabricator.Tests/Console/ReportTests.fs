@@ -246,3 +246,44 @@ let ``New file diff marks the missing final line break``(): unit =
 let ``Empty new file diff has no hunks``(): unit =
     let change = TextDiff { Name = "f"; OldText = None; NewText = "" }
     Assert.Equal<string seq>([ "--- /dev/null"; "+++ f (new)" ], detailTexts change)
+
+let private summaryOf states = reportOf states |> Report.formatSummary
+
+[<Fact>]
+let ``Summary counts the resources in every state``(): unit =
+    Assert.Equal(
+        "1 already applied, 2 to apply, 1 errored, 1 blocked",
+        summaryOf [
+            ReportItemState.NotApplied
+            ReportItemState.AlreadyApplied
+            ReportItemState.CheckErrored
+            ReportItemState.NotApplied
+            ReportItemState.Skipped
+        ]
+    )
+
+[<Fact>]
+let ``Summary sums the check and apply errors``(): unit =
+    Assert.Equal(
+        "2 applied, 2 errored",
+        summaryOf [
+            ReportItemState.Applied; ReportItemState.CheckErrored
+            ReportItemState.ApplyErrored; ReportItemState.Applied
+        ]
+    )
+
+[<Fact>]
+let ``Summary omits the states no resources are in``(): unit =
+    Assert.Equal("3 already applied", summaryOf [ for _ in 1 .. 3 -> ReportItemState.AlreadyApplied ])
+    Assert.Empty(Report.summary(reportOf []))
+
+[<Fact>]
+let ``Summary parts are presented as their states``(): unit =
+    let parts = Report.summary(reportOf [ ReportItemState.ApplyErrored; ReportItemState.Skipped ])
+    Assert.Equal<SummaryPart list>(
+        [
+            { Text = "1 errored"; State = ReportItemState.CheckErrored }
+            { Text = "1 blocked"; State = ReportItemState.Skipped }
+        ],
+        parts
+    )

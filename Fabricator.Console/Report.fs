@@ -61,6 +61,14 @@ type internal DetailLine =
         Kind: DetailKind
     }
 
+/// A part of the report summary: the number of the resources in some state.
+type internal SummaryPart =
+    {
+        Text: string
+        /// The state the part is presented as.
+        State: ReportItemState
+    }
+
 /// The final states of all the resources processed by an execution.
 type internal Report =
     {
@@ -187,6 +195,27 @@ module internal Report =
     /// The full text of the report line.
     let formatLine (useEmoji: bool) (item: ReportItem): string =
         $"{marker useEmoji item.State} {description item}"
+
+    /// The numbers of the resources in every state, except the states no resources are in.
+    let summary(report: Report): SummaryPart list =
+        let count (states: ReportItemState list) =
+            report.Items |> List.filter (fun item -> List.contains item.State states) |> List.length
+        [
+            [ ReportItemState.AlreadyApplied ], "already applied"
+            [ ReportItemState.NotApplied ], "to apply"
+            [ ReportItemState.Applied ], "applied"
+            [ ReportItemState.CheckErrored; ReportItemState.ApplyErrored ], "errored"
+            [ ReportItemState.Skipped ], "blocked"
+        ]
+        |> List.choose (fun (states, label) ->
+            match count states with
+            | 0 -> None
+            | n -> Some { Text = $"{n} {label}"; State = List.head states }
+        )
+
+    /// The text of the report summary line.
+    let formatSummary(report: Report): string =
+        summary report |> Seq.map _.Text |> String.concat ", "
 
     /// Splits the text into lines. Returns the lines and whether the text ends with a line break, which doesn't start
     /// a new line.
