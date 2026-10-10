@@ -59,6 +59,10 @@ let private runCancellable (ui: ExecutionUi.IExecutionUi) (command: Async<'a>): 
 /// On the first Ctrl+C, no new resource checks or applications are started, the running ones are cancelled via their
 /// cancellation tokens, and the execution ends with an error after all of them have finished.
 /// </para>
+/// <para>
+/// After the execution has finished (unless it was cancelled), a report listing every processed resource with its
+/// final state is printed.
+/// </para>
 /// </remarks>
 /// <param name="args">The command-line arguments.</param>
 /// <param name="resources">The root resources, i.e., the resources describing the desired environment state.</param>
@@ -74,12 +78,18 @@ let main (args: string seq) (resources: Resource seq): int =
     match args with
     | [|"apply"|] ->
         match apply ui resources |> runCancellable ui with
-        | Some true -> ExitCodes.Success
-        | Some false | None -> ExitCodes.ExecutionError
+        | Some report ->
+            ui.WriteReport report
+            if Report.isSuccessful report then ExitCodes.Success else ExitCodes.ExecutionError
+        | None -> ExitCodes.ExecutionError
     | [|"check"|] ->
         match check ui resources |> runCancellable ui with
-        | Some AllApplied -> ExitCodes.Success
-        | Some NotAllApplied -> ExitCodes.NotAllApplied
-        | Some CheckError | None -> ExitCodes.ExecutionError
+        | Some report ->
+            ui.WriteReport report
+            match Report.checkStatus report with
+            | AllApplied -> ExitCodes.Success
+            | NotAllApplied -> ExitCodes.NotAllApplied
+            | CheckError -> ExitCodes.ExecutionError
+        | None -> ExitCodes.ExecutionError
     | [|"--help"|] -> printUsage(); ExitCodes.Success
     | _ -> printUsage(); ExitCodes.InvalidArgs

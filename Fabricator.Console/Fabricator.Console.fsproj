@@ -15,6 +15,7 @@ SPDX-License-Identifier: MIT
     <ItemGroup>
         <Compile Include="TaskExecutor.fs" />
         <Compile Include="Lowering.fs" />
+        <Compile Include="Report.fs" />
         <Compile Include="OrderedLog.fs" />
         <Compile Include="ExecutionUi.fs" />
         <Compile Include="Commands.fs" />

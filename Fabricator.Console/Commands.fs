@@ -52,26 +52,19 @@ let private execute (ui: IExecutionUi) (header: string) (title: string) (graph: 
         })
     )
 
-/// Applies the resources and their dependencies that are not applied yet. Returns whether all the required actions
-/// were successful.
-let apply (ui: IExecutionUi) (resources: Resource seq): Async<bool> = async {
+/// Applies the resources and their dependencies that are not applied yet. Returns the report of the final state of
+/// every resource.
+let apply (ui: IExecutionUi) (resources: Resource seq): Async<Report> = async {
+    let resources = Seq.toArray resources
     let graph = lower CheckAndApply resources
     let! results = execute ui "Applying changes to the current environment." "Applying" graph
-    return results.Values |> Seq.forall (function Errored _ | Blocked -> false | _ -> true)
+    return Report.create CheckAndApply resources results
 }
 
-type CheckStatus = AllApplied | NotAllApplied | CheckError
-
-let private isError = function
-    | Errored _ -> true
-    | _ -> false
-
-/// Checks the resources and all their dependencies.
-let check (ui: IExecutionUi) (resources: Resource seq): Async<CheckStatus> = async {
+/// Checks the resources and all their dependencies. Returns the report of the state of every resource.
+let check (ui: IExecutionUi) (resources: Resource seq): Async<Report> = async {
+    let resources = Seq.toArray resources
     let graph = lower CheckOnly resources
     let! results = execute ui "Checking the current environment." "Checking" graph
-    return
-        if results.Values |> Seq.exists isError then CheckError
-        elif results.Values |> Seq.contains CheckFailed then NotAllApplied
-        else AllApplied
+    return Report.create CheckOnly resources results
 }

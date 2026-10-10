@@ -71,10 +71,10 @@ let ``Live display handles more running tasks than it has rows for``(): Task = t
 
     use output = new StringWriter()
     let ui = ExecutionUi.SpectreUi(createInteractiveConsole output)
-    let! success = Commands.apply ui (resources |> Seq.map _.Resource) |> Async.StartAsTask
+    let! report = Commands.apply ui (resources |> Seq.map _.Resource) |> Async.StartAsTask
 
     let text = output.ToString()
-    Assert.True(success, text)
+    Assert.True(Report.isSuccessful report, text)
     Assert.Contains(" more", text) // The tasks not fitting the screen are summarized.
     // The overall progress counts the resources, not their check and apply tasks.
     Assert.Contains("0/10", text)
@@ -124,3 +124,58 @@ let ``ActiveProgress keeps showing the latest progress when an earlier one stops
     let _beta = progress.Start("Beta", Some 20L, Items)
     progress.Stop alpha
     Assert.Equal("Beta", (Option.get progress.Shown).Header)
+
+let private sampleReport = {
+    Items = [
+        { ResourceName = "Copy file a.txt to b.txt"; State = ReportItemState.AlreadyApplied }
+        { ResourceName = "Deploy [service]"; State = ReportItemState.Applied }
+        { ResourceName = "Install tool"; State = ReportItemState.ApplyFailed }
+    ]
+}
+
+let private sampleReportLines(useEmoji: bool) =
+    if useEmoji then [
+        "➖ Copy file a.txt to b.txt (already applied)"
+        "✅ Deploy [service] (applied)"
+        "❌ Install tool (failed to apply)"
+    ] else [
+        "[=] Copy file a.txt to b.txt (already applied)"
+        "[x] Deploy [service] (applied)"
+        "[x] Install tool (failed to apply)"
+    ]
+
+let private lines(text: string) =
+    text.Split('\n') |> Seq.map _.TrimEnd('\r') |> Seq.filter (fun line -> line <> "") |> Seq.toList
+
+/// A writer with an encoding unable to represent emoji.
+type private AsciiWriter() =
+    inherit StringWriter()
+    override _.Encoding = System.Text.Encoding.ASCII
+
+[<Fact>]
+let ``Plain UI writes the report with emoji to a Unicode writer``(): unit =
+    use output = new StringWriter()
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport sampleReport
+    Assert.Equal<string list>(sampleReportLines true, lines(output.ToString()))
+
+[<Fact>]
+let ``Plain UI writes the report in ASCII to a non-Unicode writer``(): unit =
+    use output = new AsciiWriter()
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport sampleReport
+    Assert.Equal<string list>(sampleReportLines false, lines(output.ToString()))
+
+[<Fact>]
+let ``Plain UI writes nothing for an empty report``(): unit =
+    use output = new StringWriter()
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport { Items = [] }
+    Assert.Equal("", output.ToString())
+
+[<Theory>]
+[<InlineData true>]
+[<InlineData false>]
+let ``Spectre UI writes the report according to the console Unicode support``(unicode: bool): unit =
+    use output = new StringWriter()
+    let console = createInteractiveConsole output
+    console.Profile.Capabilities.Unicode <- unicode
+    (ExecutionUi.SpectreUi console :> ExecutionUi.IExecutionUi).WriteReport sampleReport
+    Assert.Equal<string list>(sampleReportLines unicode, lines(output.ToString()))

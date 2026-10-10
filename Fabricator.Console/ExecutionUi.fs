@@ -64,6 +64,8 @@ type IExecutionUi =
         header: string * title: string * totalResources: int * action: (IExecutionView -> Async<'a>) -> Async<'a>
     /// Writes a line out of any task's log order, e.g. a message about the execution as a whole.
     abstract WriteLine: line: string -> unit
+    /// Writes the report of a finished execution.
+    abstract WriteReport: report: Report -> unit
 
 /// The visual representation of a running task's status and progress.
 type private ITaskRow =
@@ -158,12 +160,24 @@ let private awaitTask(t: Task<'a>): Async<'a> = async {
         return Unchecked.defaultof<'a> // Unreachable.
 }
 
+/// Whether the encoding is able to represent any Unicode character, including emoji.
+let private isUnicode(encoding: System.Text.Encoding) =
+    match encoding.CodePage with
+    | 65001 | 1200 | 1201 | 12000 | 12001 -> true // UTF-8, UTF-16 (LE, BE), UTF-32 (LE, BE).
+    | _ -> false
+
 /// The UI writing only the ordered log, as plain text.
 type PlainUi(writer: TextWriter) =
+    let useEmoji = isUnicode writer.Encoding
     let writer = TextWriter.Synchronized writer
 
     interface IExecutionUi with
         member _.WriteLine line = writer.WriteLine line
+        member _.WriteReport report =
+            if not report.Items.IsEmpty then
+                writer.WriteLine()
+                for item in report.Items do
+                    writer.WriteLine(Report.formatLine useEmoji item)
         member _.Run(header, _, _, action) = async {
             let! ct = Async.CancellationToken
             let log = OrderedLog(fun lines -> for line in lines do writer.WriteLine line)
@@ -468,6 +482,17 @@ let maxTaskRows(consoleHeight: int): int =
 type SpectreUi(console: IAnsiConsole) =
     interface IExecutionUi with
         member _.WriteLine line = writeLines console [| line |]
+        member _.WriteReport report =
+            if not report.Items.IsEmpty then
+                let useEmoji = console.Profile.Capabilities.Unicode
+                let paragraph = Paragraph()
+                paragraph.Append "\n" |> ignore
+                for item in report.Items do
+                    paragraph
+                        .Append(Report.marker useEmoji item.State, Style(Report.color item.State))
+                        .Append($" {Report.description item}\n")
+                    |> ignore
+                console.Write paragraph
         member _.Run(header, title, totalResources, action) = async {
             let! ct = Async.CancellationToken
             let log = OrderedLog(writeLines console)

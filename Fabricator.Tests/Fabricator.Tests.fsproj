@@ -18,6 +18,7 @@ SPDX-License-Identifier: MIT
         <Compile Include="Console\ExecutionUiTests.fs" />
         <Compile Include="Console\LoweringTests.fs" />
         <Compile Include="Console\OrderedLogTests.fs" />
+        <Compile Include="Console\ReportTests.fs" />
         <Compile Include="Console\TaskExecutorTests.fs" />
         <Compile Include="Core\ResourceTests.fs" />
         <Compile Include="Resources\DownloadsTests.fs" />

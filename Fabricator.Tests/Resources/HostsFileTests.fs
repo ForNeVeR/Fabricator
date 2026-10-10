@@ -221,9 +221,9 @@ let ``Several records applied together are all written to the hosts file``(): Ta
         let resources = [ for host in hosts -> HostsFile.Record("127.0.0.1", host, path) ]
 
         use output = new StringWriter()
-        let! success = Fabricator.Console.Commands.apply (Fabricator.Console.ExecutionUi.PlainUi output) resources |> Async.StartAsTask
+        let! report = Fabricator.Console.Commands.apply (Fabricator.Console.ExecutionUi.PlainUi output) resources |> Async.StartAsTask
 
-        Assert.True(success, output.ToString())
+        Assert.True(Fabricator.Console.Report.isSuccessful report, output.ToString())
         let! lines = path.ReadAllLinesAsync()
         for host in hosts do
             Assert.Contains($"127.0.0.1 {host}", lines)
