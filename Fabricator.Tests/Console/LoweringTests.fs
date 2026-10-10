@@ -118,8 +118,8 @@ let ``Same resource passed twice is lowered once``(): unit =
 
 [<Fact>]
 let ``Resources with equal contents are lowered separately``(): unit =
-    let alreadyApplied _ = async.Return true
-    let apply _ = async.Return()
+    let alreadyApplied _ = async.Return NoChanges
+    let apply _ = async.Return NoChanges
     let create() = {
         PresentableName = "R"
         DependsOn = Resource.NoDependencies

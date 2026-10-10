@@ -50,25 +50,29 @@ type Files =
             | GeneratedContent(_, generator) ->
                 generator() |> async.Return
 
-        let arraysEqual (a: byte[]) (b: byte[]) =
-            ReadOnlySpan(a).SequenceEqual(ReadOnlySpan(b))
+        let readExistingContent() = async {
+            if not(File.Exists targetAbsolutePath) then return None
+            else
+                let! content = readAllBytesAsync targetAbsolutePath
+                return Some content
+        }
 
         {
             PresentableName = resourceName source
             DependsOn = dependencies dependsOn
             Lock = None
             AlreadyApplied = fun _ -> async {
-                if not(File.Exists targetAbsolutePath) then return false else
-                let! ct = Async.CancellationToken
-                let! existingContent = Async.AwaitTask <| File.ReadAllBytesAsync(targetAbsolutePath, ct)
-                let! actualContent = getContent source
-                return arraysEqual existingContent actualContent
+                let! existingContent = readExistingContent()
+                let! content = getContent source
+                return Diffs.fileChange targetAbsolutePath existingContent content
             }
             Apply = fun ctx -> async {
                 ctx.Reporter.Status "Reading the content"
+                let! existingContent = readExistingContent()
                 let! content = getContent source
                 ctx.Reporter.Status $"Writing to \"{targetAbsolutePath}\""
                 do! writeAllBytesAsync targetAbsolutePath content
+                return Diffs.fileChange targetAbsolutePath existingContent content
             }
         }
 
@@ -81,10 +85,11 @@ type Files =
             DependsOn = dependencies dependsOn
             Lock = None
             AlreadyApplied = fun _ -> async {
-                return path.ExistsDirectory()
+                return if path.ExistsDirectory() then NoChanges else NamedChange $"new directory \"{path.Value}\""
             }
             Apply = fun _ -> async {
                 path.CreateDirectory()
+                return NamedChange $"new directory \"{path.Value}\""
             }
         }
 
@@ -100,10 +105,11 @@ type Files =
             DependsOn = dependencies dependsOn
             Lock = None
             AlreadyApplied = fun _ -> async {
-                return false
+                return ChangeWithNoDescription
             }
             Apply = fun _ -> async {
                 if path.ReadKind() <> Nullable FileEntryKind.File then
                     failwithf $"File \"{path}\" does not exist."
+                return NoChanges
             }
         }

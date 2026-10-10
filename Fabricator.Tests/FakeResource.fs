@@ -28,15 +28,17 @@ type FakeResource(name: string, log: EventLog, lock: ConcurrencyGroup option, de
             do! this.OnCheckWithContext ctx
             match this.CheckError with
             | Some e -> return raise e
-            | None -> return this.IsApplied
+            | None -> return if this.IsApplied then NoChanges else this.Change
         }
         Apply = fun ctx -> async {
             log.Add $"apply {name}"
             do! this.OnApply()
             do! this.OnApplyWithContext ctx
             match this.ApplyError with
-            | Some e -> raise e
-            | None -> this.IsApplied <- true
+            | Some e -> return raise e
+            | None ->
+                this.IsApplied <- true
+                return this.Change
         }
     }
 
@@ -44,6 +46,8 @@ type FakeResource(name: string, log: EventLog, lock: ConcurrencyGroup option, de
         FakeResource(name, log, None, dependencies)
 
     member val IsApplied = false with get, set
+    /// The change reported by the check while not applied, and by the application.
+    member val Change = ChangeWithNoDescription with get, set
     member val CheckError: exn option = None with get, set
     member val ApplyError: exn option = None with get, set
     member val OnCheck: unit -> Async<unit> = (fun () -> async.Return()) with get, set

@@ -21,7 +21,7 @@ let private demoDirectory = AbsolutePath(Path.GetTempPath()) / "fabricator-demo"
 let private inspect(ctx: ResourceContext) = async {
     ctx.Reporter.Status "Inspecting…"
     do! Async.Sleep(Random.Shared.Next(300, 800))
-    return false
+    return ChangeWithNoDescription
 }
 
 let private demo (name: string) (dependsOn: Resource seq) (apply: ResourceContext -> Async<unit>): Resource = {
@@ -29,7 +29,10 @@ let private demo (name: string) (dependsOn: Resource seq) (apply: ResourceContex
     DependsOn = ImmutableHashSet.CreateRange dependsOn
     Lock = None
     AlreadyApplied = inspect
-    Apply = apply
+    Apply = fun ctx -> async {
+        do! apply ctx
+        return ChangeWithNoDescription
+    }
 }
 
 let private statusOnly = demo "status only" [] (fun ctx -> async {
@@ -107,6 +110,29 @@ let private fanOut = [
         })
 ]
 
+/// A resource describing its change in words.
+let private namedChange =
+    let description = "new demo entity\nsize: large\ncolor: green"
+    {
+        demo "named change" [] (fun _ -> async.Return()) with
+            AlreadyApplied = fun _ -> async.Return(NamedChange description)
+            Apply = fun _ -> async.Return(NamedChange description)
+    }
+
+/// A file changing its content on every run, to show the change as a diff.
+let private textFile =
+    let path = demoDirectory / "config.ini"
+    let content() =
+        let now = DateTimeOffset.Now
+        Text.Encoding.UTF8.GetBytes(
+            "[demo]\n" +
+            "name = Fabricator demo\n" +
+            $"generated = {now:``yyyy-MM-dd HH:mm:ss``}\n" +
+            $"second = {now.Second}\n" +
+            "enabled = true\n"
+        )
+    Files.file(GeneratedContent("config.ini", content), path.Value)
+
 let private lockedGroup = ConcurrencyGroup "Demo"
 let private locked = [
     for i in 1 .. 3 ->
@@ -130,6 +156,8 @@ let resources(download: Uri * Sha256Hash): Resource list =
         realDownload download
         commandOutput
         blockedDependent
+        namedChange
+        textFile
         yield! fanOut
         yield! locked
     ]

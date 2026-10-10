@@ -52,6 +52,12 @@ type Chocolatey =
             reporter.Status $"Upgrading to version {version}"
             runCommand reporter "choco" [|"upgrade"; name; "--version"; version; "--yes"|] |> Async.Ignore
 
+        let change(installedVersion: string option) =
+            match installedVersion with
+            | Some installed when installed = version -> NoChanges
+            | Some installed -> NamedChange $"package {name}: {installed} → {version}"
+            | None -> NamedChange $"new package {name} {version}"
+
         {
             PresentableName = $"Package {name}"
             DependsOn = dependencies dependsOn
@@ -59,13 +65,14 @@ type Chocolatey =
 
             AlreadyApplied = fun ctx -> async {
                 let! installedVersion = getInstalledPackageVersion ctx.Reporter
-                return installedVersion = Some version
+                return change installedVersion
             }
             Apply = fun ctx -> async {
                 let! installedVersion = getInstalledPackageVersion ctx.Reporter
-                return!
+                do!
                     match installedVersion with
                     | Some _ -> upgradePackage ctx.Reporter
                     | None -> installPackage ctx.Reporter
+                return change installedVersion
             }
         }

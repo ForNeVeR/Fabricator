@@ -29,7 +29,7 @@ type DotNetTool =
             DependsOn = dependencies dependsOn
             Lock = Some(DotNetTool.ConcurrencyGroup installationPath)
             AlreadyApplied = fun ctx -> async {
-                if not <| installationPath.ExistsDirectory() then return false else
+                if not <| installationPath.ExistsDirectory() then return NamedChange $"new tool {name} {version}" else
                 ctx.Reporter.Status "Querying the installed tools"
                 let! execResult =
                     runCommand ctx.Reporter "dotnet" [|
@@ -51,7 +51,9 @@ type DotNetTool =
                 if packageId <> name.ToLowerInvariant()
                 then failwithf $"dotnet tool returned metainfo for unexpected package: {packageId}"
 
-                return packageVersion = version
+                return
+                    if packageVersion = version then NoChanges
+                    else NamedChange $"tool {name}: {packageVersion} → {version}"
             }
             Apply = fun ctx -> async {
                 ctx.Reporter.Status $"Installing version {version}"
@@ -64,6 +66,7 @@ type DotNetTool =
                         "--tool-path"; installationPath.Value
                     |]
                     |> Async.Ignore
+                return NamedChange $"tool {name} {version}"
             }
     }
 

@@ -24,17 +24,18 @@ type Archive =
         ?dependsOn: Resource seq
     ): Resource =
         let outputHashFile = destinationDirectory / "fabricator-hash.txt"
+        let change = NamedChange $"unpack \"{archive.Value}\" to \"{destinationDirectory.Value}\""
         {
             PresentableName = $"Unpack archive \"{archive}\" to \"{destinationDirectory.Value}\""
             DependsOn = dependencies dependsOn
             Lock = None
             AlreadyApplied = fun _ -> async {
-                if not(outputHashFile.Exists()) then return false
+                if not(outputHashFile.Exists()) then return change
                 else
 
                 let content = outputHashFile.ReadAllText()
                 let existingHash = Sha256(content.Trim())
-                return hash = existingHash
+                return if hash = existingHash then NoChanges else change
             }
             Apply = fun ctx -> async {
                 if not(archive.Exists()) then failwithf $"Archive file \"{archive.Value}\" does not exist."
@@ -44,5 +45,6 @@ type Archive =
                 ZipFile.ExtractToDirectory(archive.Value, destinationDirectory.Value)
                 outputHashFile.WriteAllText(hash.ToString())
                 ctx.Reporter.Log $"Extracted \"{archive.Value}\" to \"{destinationDirectory.Value}\"."
+                return change
             }
         }

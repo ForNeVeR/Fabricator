@@ -56,9 +56,15 @@ type Resource =
 
         /// <summary>
         /// Checks whether the resource is already in its desired state in the current environment. Should return
-        /// <c>true</c> if the resource is already applied and requires no further action, <c>false</c> otherwise.
+        /// <see cref="F:Fabricator.Core.ResourceChange.NoChanges"/> if the resource is already applied and requires no
+        /// further action, or the change required to apply it otherwise.
         /// </summary>
         /// <remarks>
+        /// <para>
+        /// The returned change is shown to the user as the change about to be made. Return
+        /// <see cref="F:Fabricator.Core.ResourceChange.ChangeWithNoDescription"/> if the resource is not applied, but
+        /// the change cannot be described.
+        /// </para>
         /// <para>
         /// This function should not change the environment. It may be called concurrently with checks and
         /// applications of other resources. While applying, it is only called after all the dependencies from
@@ -69,14 +75,16 @@ type Resource =
         /// check.
         /// </para>
         /// </remarks>
-        AlreadyApplied: ResourceContext -> Async<bool>
+        AlreadyApplied: ResourceContext -> Async<ResourceChange>
 
         /// <summary>
-        /// Brings the resource to its desired state in the current environment.
+        /// Brings the resource to its desired state in the current environment. Should return the change that has been
+        /// made, which is shown to the user.
         /// </summary>
         /// <remarks>
         /// <para>
-        /// Only called after <see cref="P:Fabricator.Core.Resource.AlreadyApplied"/> returned <c>false</c>, and after
+        /// Only called after <see cref="P:Fabricator.Core.Resource.AlreadyApplied"/> returned a change other than
+        /// <see cref="F:Fabricator.Core.ResourceChange.NoChanges"/>, and after
         /// all the dependencies from <see cref="P:Fabricator.Core.Resource.DependsOn"/> are applied (the ones not
         /// applied yet are applied first). May be called concurrently with checks and applications of other resources
         /// that are not connected to this one via dependencies.
@@ -86,7 +94,7 @@ type Resource =
         /// of the application.
         /// </para>
         /// </remarks>
-        Apply: ResourceContext -> Async<unit>
+        Apply: ResourceContext -> Async<ResourceChange>
 
         /// <summary>
         /// The concurrency group of the resource, or <c>None</c> if the resource can be checked and applied

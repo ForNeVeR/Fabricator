@@ -59,7 +59,12 @@ type Downloads =
             AlreadyApplied = fun ctx -> async {
                 ctx.Reporter.Status "Computing hash"
                 let! downloadedHash = calcHash downloadPath
-                return downloadedHash = Some expectedHash
+                let download = $"download {uri} to \"{downloadPath.Value}\""
+                return
+                    match downloadedHash with
+                    | Some hash when hash = expectedHash -> NoChanges
+                    | Some hash -> NamedChange $"{download}\nreplacing the existing file with hash {hash}"
+                    | None -> NamedChange download
             }
             Apply = fun ctx -> async {
                 let reporter = ctx.Reporter
@@ -105,5 +110,6 @@ type Downloads =
                     $"Downloaded {downloadedBytes} bytes from {uri} to \"{downloadPath.Value}\" " +
                     $"in %.2f{stopwatch.Elapsed.TotalSeconds}s."
                 )
+                return NamedChange $"downloaded {downloadedBytes} bytes from {uri} to \"{downloadPath.Value}\""
             }
         }

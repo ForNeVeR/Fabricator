@@ -6,6 +6,7 @@ namespace Fabricator.Console
 
 open System
 open System.Collections.Generic
+open DiffPlex.Renderer
 open Fabricator.Console.Lowering
 open Fabricator.Core
 open Spectre.Console
@@ -26,11 +27,38 @@ type internal ReportItemState =
     /// The resource application has thrown an error.
     | ApplyErrored
 
-/// A line of the report: a resource and its final state.
+/// A line of the report: a resource, its final state, and the change related to the state.
 type internal ReportItem =
     {
         ResourceName: string
         State: ReportItemState
+        /// <summary>
+        /// The change required to apply the resource for <see cref="F:Fabricator.Console.ReportItemState.NotApplied"/>,
+        /// the change made for <see cref="F:Fabricator.Console.ReportItemState.Applied"/>, or
+        /// <see cref="F:Fabricator.Core.ResourceChange.NoChanges"/> for the other states.
+        /// </summary>
+        Change: ResourceChange
+    }
+
+/// The kind of a change detail line, defining its presentation.
+[<RequireQualifiedAccess>]
+type internal DetailKind =
+    /// A line of a change description, or a context line of a patch.
+    | Plain
+    /// A patch file header: the line starting with <c>---</c> or <c>+++</c>.
+    | FileHeader
+    /// A patch hunk header: the line starting with <c>@@</c>.
+    | HunkHeader
+    /// A line added by a patch.
+    | Added
+    /// A line removed by a patch.
+    | Removed
+
+/// A line of the change details shown under a report line.
+type internal DetailLine =
+    {
+        Text: string
+        Kind: DetailKind
     }
 
 /// The final states of all the resources processed by an execution.
@@ -70,19 +98,19 @@ module internal Report =
 
     let private checkState (resource: Resource) (outcome: TaskOutcome) =
         match outcome with
-        | CheckPassed -> ReportItemState.AlreadyApplied
-        | CheckFailed -> ReportItemState.NotApplied
-        | Errored _ -> ReportItemState.CheckErrored
-        | Blocked -> ReportItemState.Skipped
-        | Applied | NotRequired -> unexpected resource outcome
+        | CheckPassed -> ReportItemState.AlreadyApplied, NoChanges
+        | ChangeNeeded change -> ReportItemState.NotApplied, change
+        | Errored _ -> ReportItemState.CheckErrored, NoChanges
+        | Blocked -> ReportItemState.Skipped, NoChanges
+        | Applied _ | NotRequired -> unexpected resource outcome
 
     let private applyState (resource: Resource) (checkOutcome: TaskOutcome) (applyOutcome: TaskOutcome) =
         match checkOutcome, applyOutcome with
-        | CheckPassed, NotRequired -> ReportItemState.AlreadyApplied
-        | CheckFailed, Applied -> ReportItemState.Applied
-        | CheckFailed, Errored _ -> ReportItemState.ApplyErrored
-        | Errored _, Blocked -> ReportItemState.CheckErrored
-        | Blocked, Blocked -> ReportItemState.Skipped
+        | CheckPassed, NotRequired -> ReportItemState.AlreadyApplied, NoChanges
+        | ChangeNeeded _, Applied change -> ReportItemState.Applied, change
+        | ChangeNeeded _, Errored _ -> ReportItemState.ApplyErrored, NoChanges
+        | Errored _, Blocked -> ReportItemState.CheckErrored, NoChanges
+        | Blocked, Blocked -> ReportItemState.Skipped, NoChanges
         | _ -> unexpected resource (checkOutcome, applyOutcome)
 
     /// <summary>Creates the report of an execution.</summary>
@@ -96,7 +124,7 @@ module internal Report =
         (roots: Resource seq)
         (results: IReadOnlyDictionary<LoweredTask, TaskOutcome>)
         : Report =
-        let state(resource: Resource) =
+        let stateAndChange(resource: Resource) =
             let checkOutcome = results[{ Kind = Check; Resource = resource }]
             match mode with
             | CheckOnly -> checkState resource checkOutcome
@@ -104,7 +132,8 @@ module internal Report =
         {
             Items = [
                 for resource in orderResources roots ->
-                    { ResourceName = resource.PresentableName; State = state resource }
+                    let state, change = stateAndChange resource
+                    { ResourceName = resource.PresentableName; State = state; Change = change }
             ]
         }
 
@@ -158,3 +187,72 @@ module internal Report =
     /// The full text of the report line.
     let formatLine (useEmoji: bool) (item: ReportItem): string =
         $"{marker useEmoji item.State} {description item}"
+
+    /// Splits the text into lines. Returns the lines and whether the text ends with a line break, which doesn't start
+    /// a new line.
+    let private splitLines(text: string): string[] * bool =
+        let endsWithLineBreak = text.EndsWith '\n'
+        let text = if endsWithLineBreak then text.Substring(0, text.Length - 1) else text
+        let lines =
+            if text.Length = 0 && endsWithLineBreak then Seq.singleton ""
+            elif text.Length = 0 then []
+            else text.Split '\n' |> Seq.map _.TrimEnd('\r')
+        lines |> Seq.toArray, endsWithLineBreak
+
+    let private noFinalLineBreakMarker = @"\ No newline at end of file"
+
+    let private line (kind: DetailKind) (text: string) = { Text = text; Kind = kind }
+
+    let private newFilePatch (name: string) (text: string): DetailLine seq =
+        let lines, endsWithLineBreak = splitLines text
+        seq {
+            yield line DetailKind.FileHeader "--- /dev/null"
+            yield line DetailKind.FileHeader $"+++ {name} (new)"
+            if not <| Array.isEmpty lines then
+                yield line DetailKind.HunkHeader $"@@ -0,0 +1,{lines.Length} @@"
+                yield! lines |> Seq.map (fun l -> line DetailKind.Added ("+" + l))
+                if not endsWithLineBreak then yield line DetailKind.Plain noFinalLineBreakMarker
+        }
+
+    let private trimFinalLineBreak(text: string) =
+        if text.EndsWith "\r\n" then text.Substring(0, text.Length - 2)
+        elif text.EndsWith '\n' then text.Substring(0, text.Length - 1)
+        else text
+
+    let private changedFilePatch (name: string) (oldText: string) (newText: string): DetailLine seq =
+        // DiffPlex presents the final line break as an additional empty line, so it is removed when both texts have it.
+        let oldText, newText =
+            if oldText.EndsWith '\n' && newText.EndsWith '\n'
+            then trimFinalLineBreak oldText, trimFinalLineBreak newText
+            else oldText, newText
+        let patch = UnidiffRenderer.GenerateUnidiff(oldText, newText, name, name, ignoreWhitespace = false)
+        let lines, _ = splitLines patch
+        lines |> Seq.mapi (fun i text ->
+            let kind =
+                if i < 2 then DetailKind.FileHeader
+                elif text.StartsWith "@@" then DetailKind.HunkHeader
+                elif text.StartsWith '+' then DetailKind.Added
+                elif text.StartsWith '-' then DetailKind.Removed
+                else DetailKind.Plain
+            line kind text
+        )
+
+    /// The lines describing the change, to show under the report line.
+    let details(change: ResourceChange): DetailLine seq =
+        match change with
+        | NoChanges | ChangeWithNoDescription -> []
+        | NamedChange description -> splitLines description |> fst |> Seq.map (line DetailKind.Plain)
+        | TextDiff { Name = name; OldText = None; NewText = newText } -> newFilePatch name newText
+        | TextDiff { Name = name; OldText = Some oldText; NewText = newText } -> changedFilePatch name oldText newText
+
+    /// The indentation of the detail lines relative to the report line.
+    let detailIndent = "    "
+
+    /// The style of a detail line, for the consoles supporting colors.
+    let detailStyle(kind: DetailKind): Style =
+        match kind with
+        | DetailKind.Plain -> Style.Plain
+        | DetailKind.FileHeader -> Style(decoration = Decoration.Bold)
+        | DetailKind.HunkHeader -> Style(foreground = Color.Aqua)
+        | DetailKind.Added -> Style(foreground = Color.Green)
+        | DetailKind.Removed -> Style(foreground = Color.Red)

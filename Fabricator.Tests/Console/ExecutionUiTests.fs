@@ -127,9 +127,9 @@ let ``ActiveProgress keeps showing the latest progress when an earlier one stops
 
 let private sampleReport = {
     Items = [
-        { ResourceName = "Copy file a.txt to b.txt"; State = ReportItemState.AlreadyApplied }
-        { ResourceName = "Deploy [service]"; State = ReportItemState.Applied }
-        { ResourceName = "Install tool"; State = ReportItemState.ApplyErrored }
+        { ResourceName = "Copy file a.txt to b.txt"; State = ReportItemState.AlreadyApplied; Change = NoChanges }
+        { ResourceName = "Deploy [service]"; State = ReportItemState.Applied; Change = NoChanges }
+        { ResourceName = "Install tool"; State = ReportItemState.ApplyErrored; Change = NoChanges }
     ]
 }
 
@@ -160,25 +160,25 @@ type private Utf8Writer() =
 [<Fact>]
 let ``Plain UI writes the report with emoji to a Unicode writer``(): unit =
     use output = new StringWriter()
-    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport sampleReport
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport(sampleReport, true)
     Assert.Equal<string list>(sampleReportLines true, lines(output.ToString()))
 
 [<Fact>]
 let ``Plain UI writes the report with emoji to a UTF-8 writer``(): unit =
     use output = new Utf8Writer()
-    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport sampleReport
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport(sampleReport, true)
     Assert.Equal<string list>(sampleReportLines true, lines(output.ToString()))
 
 [<Fact>]
 let ``Plain UI writes the report in ASCII to a non-Unicode writer``(): unit =
     use output = new AsciiWriter()
-    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport sampleReport
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport(sampleReport, true)
     Assert.Equal<string list>(sampleReportLines false, lines(output.ToString()))
 
 [<Fact>]
 let ``Plain UI writes nothing for an empty report``(): unit =
     use output = new StringWriter()
-    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport { Items = [] }
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport({ Items = [] }, true)
     Assert.Equal("", output.ToString())
 
 [<Theory>]
@@ -188,5 +188,63 @@ let ``Spectre UI writes the report according to the console Unicode support``(un
     use output = new StringWriter()
     let console = createInteractiveConsole output
     console.Profile.Capabilities.Unicode <- unicode
-    (ExecutionUi.SpectreUi console :> ExecutionUi.IExecutionUi).WriteReport sampleReport
+    (ExecutionUi.SpectreUi console :> ExecutionUi.IExecutionUi).WriteReport(sampleReport, true)
     Assert.Equal<string list>(sampleReportLines unicode, lines(output.ToString()))
+let private reportWithChanges = {
+    Items = [
+        { ResourceName = "Service"; State = ReportItemState.NotApplied; Change = NamedChange "new service\naccount: me" }
+        {
+            ResourceName = "File"
+            State = ReportItemState.Applied
+            Change = TextDiff { Name = "f.txt"; OldText = Some "a\n"; NewText = "b\n" }
+        }
+        { ResourceName = "Silent"; State = ReportItemState.NotApplied; Change = ChangeWithNoDescription }
+    ]
+}
+
+let private reportWithChangesLines = [
+    "[ ] Service (not applied)"
+    "    new service"
+    "    account: me"
+    "[x] File (applied)"
+    "    --- f.txt"
+    "    +++ f.txt"
+    "    @@ -1,1 +1,1 @@"
+    "    -a"
+    "    +b"
+    "[ ] Silent (not applied)"
+]
+
+let private briefReportWithChangesLines = [
+    "[ ] Service (not applied)"
+    "[x] File (applied)"
+    "[ ] Silent (not applied)"
+]
+
+[<Fact>]
+let ``Plain UI writes the change details under the report lines``(): unit =
+    use output = new AsciiWriter()
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport(reportWithChanges, true)
+    Assert.Equal<string list>(reportWithChangesLines, lines(output.ToString()))
+
+[<Fact>]
+let ``Plain UI omits the change details when asked``(): unit =
+    use output = new AsciiWriter()
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteReport(reportWithChanges, false)
+    Assert.Equal<string list>(briefReportWithChangesLines, lines(output.ToString()))
+
+[<Theory>]
+[<InlineData true>]
+[<InlineData false>]
+let ``Spectre UI writes the change details according to the flag``(showChanges: bool): unit =
+    use output = new StringWriter()
+    let console = createInteractiveConsole output
+    console.Profile.Capabilities.Unicode <- false
+    (ExecutionUi.SpectreUi console :> ExecutionUi.IExecutionUi).WriteReport(reportWithChanges, showChanges)
+    let text = output.ToString()
+    // The patch file headers are bold even without the color support.
+    Assert.Equal(showChanges, text.Contains "\u001b[1m--- f.txt\u001b[0m")
+    Assert.Equal<string list>(
+        (if showChanges then reportWithChangesLines else briefReportWithChangesLines),
+        lines(Regex.Replace(text, "\u001b" + @"\[[0-9;]*m", ""))
+    )

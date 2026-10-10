@@ -107,6 +107,12 @@ type WindowsCertificates =
 
         let cert = lazy (getCertificateFromFile certificatePath)
 
+        let change (certificate: X509Certificate2) =
+            NamedChange(
+                $"new certificate {certificate.Thumbprint} ({certificate.Subject}) " +
+                $"in {storeLocation.Location}/{storeLocation.StoreName}"
+            )
+
         {
             PresentableName =
                 $"Certificate \"{certificatePath.FileName}\" in {storeLocation.Location}/{storeLocation.StoreName}"
@@ -115,7 +121,7 @@ type WindowsCertificates =
 
             AlreadyApplied = fun _ -> async {
                 let certificate = cert.Value
-                return isCertificateInStore certificate
+                return if isCertificateInStore certificate then NoChanges else change certificate
             }
 
             Apply = fun ctx -> async {
@@ -123,5 +129,6 @@ type WindowsCertificates =
                 ctx.Reporter.Status $"Adding to {storeLocation.Location}/{storeLocation.StoreName}"
                 addCertificateToStore certificate
                 ctx.Reporter.Log $"Certificate {certificate.Thumbprint} added to {storeLocation.Location}/{storeLocation.StoreName}."
+                return change certificate
             }
         }

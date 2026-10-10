@@ -64,8 +64,10 @@ type IExecutionUi =
         header: string * title: string * totalResources: int * action: (IExecutionView -> Async<'a>) -> Async<'a>
     /// Writes a line out of any task's log order, e.g. a message about the execution as a whole.
     abstract WriteLine: line: string -> unit
-    /// Writes the report of a finished execution.
-    abstract WriteReport: report: Report -> unit
+    /// <summary>Writes the report of a finished execution.</summary>
+    /// <param name="report">The report.</param>
+    /// <param name="showChanges">Whether to show the details of the changes under the report lines.</param>
+    abstract WriteReport: report: Report * showChanges: bool -> unit
 
 /// The visual representation of a running task's status and progress.
 type private ITaskRow =
@@ -172,11 +174,14 @@ type PlainUi(writer: TextWriter) =
 
     interface IExecutionUi with
         member _.WriteLine line = writer.WriteLine line
-        member _.WriteReport report =
+        member _.WriteReport(report, showChanges) =
             if not report.Items.IsEmpty then
                 writer.WriteLine()
                 for item in report.Items do
                     writer.WriteLine(Report.formatLine useEmoji item)
+                    if showChanges then
+                        for detail in Report.details item.Change do
+                            writer.WriteLine(Report.detailIndent + detail.Text)
         member _.Run(header, _, _, action) = async {
             let! ct = Async.CancellationToken
             let log = OrderedLog(fun lines -> for line in lines do writer.WriteLine line)
@@ -481,7 +486,7 @@ let maxTaskRows(consoleHeight: int): int =
 type SpectreUi(console: IAnsiConsole) =
     interface IExecutionUi with
         member _.WriteLine line = writeLines console [| line |]
-        member _.WriteReport report =
+        member _.WriteReport(report, showChanges) =
             if not report.Items.IsEmpty then
                 let useEmoji = console.Profile.Capabilities.Unicode
                 let paragraph = Paragraph()
@@ -491,6 +496,13 @@ type SpectreUi(console: IAnsiConsole) =
                         .Append(Report.marker useEmoji item.State, Style(Report.color item.State))
                         .Append($" {Report.description item}\n")
                     |> ignore
+                    if showChanges then
+                        for detail in Report.details item.Change do
+                            paragraph
+                                .Append(Report.detailIndent)
+                                .Append(detail.Text, Report.detailStyle detail.Kind)
+                                .Append "\n"
+                            |> ignore
                 console.Write paragraph
         member _.Run(header, title, totalResources, action) = async {
             let! ct = Async.CancellationToken

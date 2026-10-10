@@ -80,5 +80,5 @@ let private resources = [
 [<EntryPoint>]
 let main(args: string[]): int =
     match args with
-    | [| "demo"; command |] -> EntryPoint.main [| command |] (Demo.resources(shawlUrl, shawlHash))
+    | _ when args.Length > 0 && args[0] = "demo" -> EntryPoint.main args[1..] (Demo.resources(shawlUrl, shawlHash))
     | _ -> EntryPoint.main args resources

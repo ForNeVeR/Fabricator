@@ -35,7 +35,7 @@ let private testApply (hostsContent: string) (ipAddress: string) (host: string) 
     withTempFile (fun path -> task {
         do! path.WriteAllTextAsync(hostsContent)
         let resource = HostsFile.Record(ipAddress, host, path)
-        do! resource.Apply ResourceContext.Null
+        let! _ = resource.Apply ResourceContext.Null
         let! actualContent = path.ReadAllTextAsync()
         Assert.Equal(expectedHostsContent, actualContent)
     })
@@ -44,7 +44,7 @@ let private testApplyAndRead (hostsContent: string) (ipAddress: string) (host: s
     withTempFile (fun path -> task {
         do! path.WriteAllTextAsync(hostsContent)
         let resource = HostsFile.Record(ipAddress, host, path)
-        do! resource.Apply ResourceContext.Null
+        let! _ = resource.Apply ResourceContext.Null
         return! path.ReadAllTextAsync()
     })
 
@@ -64,49 +64,49 @@ let ``AlreadyApplied returns false when host file does not exist``(): Task = tas
     tempPath.Delete() // Delete to make it non-existent
     let resource = HostsFile.Record("127.0.0.1", "example.com", tempPath)
     let! result = resource.AlreadyApplied ResourceContext.Null
-    Assert.False result
+    Assert.NotEqual(NoChanges, result)
 }
 
 [<Fact>]
 let ``AlreadyApplied returns false when entry does not exist``(): Task = task {
     let! result = testAlreadyApplied "127.0.0.1 localhost\n192.168.1.1 router\n" "10.0.0.1" "newhost.com"
-    Assert.False result
+    Assert.NotEqual(NoChanges, result)
 }
 
 [<Fact>]
 let ``AlreadyApplied returns true when exact entry exists``(): Task = task {
     let! result = testAlreadyApplied "127.0.0.1 localhost\n192.168.1.1 example.com\n" "192.168.1.1" "example.com"
-    Assert.True result
+    Assert.Equal(NoChanges, result)
 }
 
 [<Fact>]
 let ``AlreadyApplied returns false when host exists with different IP``(): Task = task {
     let! result = testAlreadyApplied "127.0.0.1 localhost\n192.168.1.1 example.com\n" "10.0.0.1" "example.com"
-    Assert.False result
+    Assert.NotEqual(NoChanges, result)
 }
 
 [<Fact>]
 let ``AlreadyApplied handles whitespace variations``(): Task = task {
     let! result = testAlreadyApplied "192.168.1.1    example.com\n" "192.168.1.1" "example.com"
-    Assert.True result
+    Assert.Equal(NoChanges, result)
 }
 
 [<Fact>]
 let ``AlreadyApplied ignores comment lines``(): Task = task {
     let! result = testAlreadyApplied "# 192.168.1.1 example.com\n127.0.0.1 localhost\n" "192.168.1.1" "example.com"
-    Assert.False result
+    Assert.NotEqual(NoChanges, result)
 }
 
 [<Fact>]
 let ``AlreadyApplied handles inline comments``(): Task = task {
     let! result = testAlreadyApplied "192.168.1.1 example.com # this is a comment\n" "192.168.1.1" "example.com"
-    Assert.True result
+    Assert.Equal(NoChanges, result)
 }
 
 [<Fact>]
 let ``AlreadyApplied handles multi-host entries``(): Task = task {
     let! result = testAlreadyApplied "192.168.1.1 example.com another.com\n" "192.168.1.1" "example.com"
-    Assert.True result
+    Assert.Equal(NoChanges, result)
 }
 
 [<Fact>]
@@ -169,8 +169,8 @@ let ``Apply is idempotent``(): Task = task {
     do! withTempFile (fun path -> task {
         do! path.WriteAllTextAsync("127.0.0.1 localhost\n")
         let resource = HostsFile.Record("192.168.1.1", "example.com", path)
-        do! resource.Apply ResourceContext.Null
-        do! resource.Apply ResourceContext.Null
+        let! _ = resource.Apply ResourceContext.Null
+        let! _ = resource.Apply ResourceContext.Null
         let! content = path.ReadAllTextAsync()
         let lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries)
         let matchingLines = lines |> Array.filter (fun line -> line.Contains("example.com"))
@@ -184,10 +184,10 @@ let ``Apply and AlreadyApplied work together``(): Task = task {
         do! path.WriteAllTextAsync("127.0.0.1 localhost\n")
         let resource = HostsFile.Record("192.168.1.1", "example.com", path)
         let! beforeApply = resource.AlreadyApplied ResourceContext.Null
-        Assert.False beforeApply
-        do! resource.Apply ResourceContext.Null
+        Assert.NotEqual(NoChanges, beforeApply)
+        let! _ = resource.Apply ResourceContext.Null
         let! afterApply = resource.AlreadyApplied ResourceContext.Null
-        Assert.True afterApply
+        Assert.Equal(NoChanges, afterApply)
     })
 }
 
@@ -227,4 +227,22 @@ let ``Several records applied together are all written to the hosts file``(): Ta
         let! lines = path.ReadAllLinesAsync()
         for host in hosts do
             Assert.Contains($"127.0.0.1 {host}", lines)
+    })
+
+[<Fact>]
+let ``AlreadyApplied returns the diff that Apply makes``(): Task =
+    withTempFile (fun path -> task {
+        do! path.WriteAllTextAsync("127.0.0.1 localhost\n10.0.0.1 example.com\n")
+        let resource = HostsFile.Record("192.168.1.1", "example.com", path)
+        let! planned = resource.AlreadyApplied ResourceContext.Null
+        let! made = resource.Apply ResourceContext.Null
+        let! written = path.ReadAllTextAsync()
+        let expected = {
+            Name = path.Value
+            OldText = Some "127.0.0.1 localhost\n10.0.0.1 example.com\n"
+            NewText = "127.0.0.1 localhost\n192.168.1.1 example.com\n"
+        }
+        Assert.Equal(TextDiff expected, planned)
+        Assert.Equal(TextDiff expected, made)
+        Assert.Equal(expected.NewText, written.ReplaceLineEndings "\n")
     })

@@ -46,14 +46,14 @@ let private testAlreadyApplied (sourceContent: byte[]) (targetContent: byte[]) =
 [<Fact>]
 let ``AlreadyApplied returns false when not applied``(): Task = upcast task {
     let! result = testAlreadyApplied [|0uy; 1uy; 2uy|] Array.empty
-    Assert.False result
+    Assert.NotEqual(NoChanges, result)
 }
 
 [<Fact>]
 let ``AlreadyApplied returns true when applied``(): Task = upcast task {
     let bytes = [|3uy; 2uy; 1uy|]
     let! result = testAlreadyApplied bytes bytes
-    Assert.True result
+    Assert.Equal(NoChanges, result)
 }
 
 [<Fact>]
@@ -63,7 +63,29 @@ let ``Apply should create target file``(): Task = upcast task {
     let resource = file(GeneratedContent("content", fun() -> bytes), targetFile)
 
     Assert.Equal(0L, FileInfo(targetFile).Length)
-    do! resource.Apply ResourceContext.Null
+    let! _ = resource.Apply ResourceContext.Null
     let! actualContent = File.ReadAllBytesAsync(targetFile)
     Assert.Equal<byte>(bytes, actualContent)
+}
+
+[<Fact>]
+let ``AlreadyApplied returns the text diff of the target file``(): Task = upcast task {
+    let sourcePath = Path.GetTempFileName()
+    let targetPath = Path.GetTempFileName()
+    do! File.WriteAllTextAsync(sourcePath, "new\n")
+    do! File.WriteAllTextAsync(targetPath, "old\n")
+    let resource = file(AbsoluteFile sourcePath, targetPath)
+    let! change = resource.AlreadyApplied ResourceContext.Null
+    Assert.Equal(TextDiff { Name = targetPath; OldText = Some "old\n"; NewText = "new\n" }, change)
+}
+
+[<Fact>]
+let ``Apply returns the creation diff for a new target file``(): Task = upcast task {
+    let targetPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())
+    try
+        let resource = file(GeneratedContent("content", fun () -> "text\n"B), targetPath)
+        let! change = resource.Apply ResourceContext.Null
+        Assert.Equal(TextDiff { Name = targetPath; OldText = None; NewText = "text\n" }, change)
+    finally
+        File.Delete targetPath
 }

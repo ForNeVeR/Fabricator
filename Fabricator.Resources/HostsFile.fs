@@ -79,12 +79,45 @@ type HostsFile =
                 | None -> false
             )
 
-        let entryMatches (line: string) =
-            // Check if the entry matches our expected IP and host
-            match parseEntry line with
-            | Some (ip, hosts) ->
-                ip = expectedIp && hosts |> Set.contains expectedHost
-            | None -> false
+        let computeNewLines (lines: string[]) =
+            match findEntryWithHost lines with
+            | Some index ->
+                let line = lines.[index]
+                match parseEntry line with
+                | Some (ip, hosts) ->
+                    if ip = expectedIp && hosts |> Set.contains expectedHost then
+                        // IP and host both match, line is already correct
+                        lines
+                    else
+                        // IP differs or host in multi-host entry needs to be moved
+                        let otherHosts = hosts |> Set.remove expectedHost
+                        if not (Set.isEmpty otherHosts) then
+                            // Multi-host entry: split into two lines
+                            let joinedHosts = String.Join(" ", otherHosts)
+                            let updatedLine = $"{ip} {joinedHosts}"
+                            let newLine = $"{ipAddress} {host}"
+                            lines
+                            |> Array.mapi (fun i l ->
+                                if i = index then updatedLine
+                                else l)
+                            |> Array.append [| newLine |]
+                        else
+                            // Single host entry: replace
+                            lines |> Array.mapi (fun i l ->
+                                if i = index then
+                                    $"{ipAddress} {host}"
+                                else
+                                    l
+                            )
+                | None ->
+                    failwithf $"Cannot parse line \"{line}\"."
+            | None ->
+                // Add new entry at the end
+                Array.append lines [| $"{ipAddress} {host}" |]
+
+        let linesChange (oldLines: string[]) (newLines: string[]) =
+            let text (lines: string[]) = lines |> Seq.map (fun l -> l + "\n") |> String.concat ""
+            Diffs.textChange filePath.Value (Some(text oldLines)) (text newLines)
 
         {
             PresentableName = $"Host file entry \"{host}\""
@@ -93,14 +126,11 @@ type HostsFile =
 
             AlreadyApplied = fun _ -> async {
                 if not (filePath.Exists()) then
-                    return false
+                    return NamedChange $"new entry \"{ipAddress} {host}\" in \"{filePath.Value}\""
                 else
                     let! ct = Async.CancellationToken
                     let! lines = Async.AwaitTask <| filePath.ReadAllLinesAsync(ct)
-
-                    match findEntryWithHost lines with
-                    | Some index -> return entryMatches lines.[index]
-                    | None -> return false
+                    return linesChange lines (computeNewLines lines)
             }
 
             Apply = fun ctx -> async {
@@ -111,46 +141,10 @@ type HostsFile =
                     failwithf $"Hosts file not found at \"{filePath.Value}\". Ensure the file exists or specify a valid path using the hostsFilePath parameter."
 
                 let! lines = Async.AwaitTask <| filePath.ReadAllLinesAsync(ct)
-
-                let existingEntryIndex = findEntryWithHost lines
-
-                let newLines =
-                    match existingEntryIndex with
-                    | Some index ->
-                        let line = lines.[index]
-                        match parseEntry line with
-                        | Some (ip, hosts) ->
-                            if ip = expectedIp && hosts |> Set.contains expectedHost then
-                                // IP and host both match, line is already correct
-                                lines
-                            else
-                                // IP differs or host in multi-host entry needs to be moved
-                                let otherHosts = hosts |> Set.remove expectedHost
-                                if not (Set.isEmpty otherHosts) then
-                                    // Multi-host entry: split into two lines
-                                    let joinedHosts = String.Join(" ", otherHosts)
-                                    let updatedLine = $"{ip} {joinedHosts}"
-                                    let newLine = $"{ipAddress} {host}"
-                                    lines
-                                    |> Array.mapi (fun i l ->
-                                        if i = index then updatedLine
-                                        else l)
-                                    |> Array.append [| newLine |]
-                                else
-                                    // Single host entry: replace
-                                    lines |> Array.mapi (fun i l ->
-                                        if i = index then
-                                            $"{ipAddress} {host}"
-                                        else
-                                            l
-                                    )
-                        | None ->
-                            failwithf $"Cannot parse line \"{line}\"."
-                    | None ->
-                        // Add new entry at the end
-                        Array.append lines [| $"{ipAddress} {host}" |]
+                let newLines = computeNewLines lines
 
                 ctx.Reporter.Status $"Writing \"{filePath.Value}\""
                 do! Async.AwaitTask(filePath.WriteAllLinesAsync(newLines, ct))
+                return linesChange lines newLines
             }
         }

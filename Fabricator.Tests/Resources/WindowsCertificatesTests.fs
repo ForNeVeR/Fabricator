@@ -95,7 +95,7 @@ let ``AlreadyApplied returns false when certificate not in store``(): Task = tas
             do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate(tempFile, CertificateStores.CurrentUserPersonal)
                 let! result = resource.AlreadyApplied ResourceContext.Null
-                Assert.False result
+                Assert.NotEqual(NoChanges, result)
             })
         })
 }
@@ -114,7 +114,7 @@ let ``AlreadyApplied returns true when certificate already in store``(): Task = 
             do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate(tempFile, CertificateStores.CurrentUserPersonal)
                 let! result = resource.AlreadyApplied ResourceContext.Null
-                Assert.True result
+                Assert.Equal(NoChanges, result)
             })
         })
 }
@@ -130,7 +130,7 @@ let ``Apply installs certificate to store``(): Task = task {
 
             do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate(tempFile, CertificateStores.CurrentUserPersonal)
-                do! resource.Apply ResourceContext.Null
+                let! _ = resource.Apply ResourceContext.Null
 
                 // Verify certificate is now in store
                 use store = new X509Store(StoreName.My, StoreLocation.CurrentUser)
@@ -152,8 +152,8 @@ let ``Apply is idempotent``(): Task = task {
 
             do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate(tempFile, CertificateStores.CurrentUserPersonal)
-                do! resource.Apply ResourceContext.Null
-                do! resource.Apply ResourceContext.Null // Apply twice
+                let! _ = resource.Apply ResourceContext.Null
+                let! _ = resource.Apply ResourceContext.Null // Apply twice
 
                 // Verify certificate is in store only once
                 use store = new X509Store(StoreName.My, StoreLocation.CurrentUser)
@@ -176,12 +176,12 @@ let ``Apply and AlreadyApplied work together``(): Task = task {
             do! withCertificateCleanup cert CertificateStores.CurrentUserPersonal (fun () -> task {
                 let resource = trustedCertificate(tempFile, CertificateStores.CurrentUserPersonal)
                 let! beforeApply = resource.AlreadyApplied ResourceContext.Null
-                Assert.False beforeApply
+                Assert.NotEqual(NoChanges, beforeApply)
 
-                do! resource.Apply ResourceContext.Null
+                let! _ = resource.Apply ResourceContext.Null
 
                 let! afterApply = resource.AlreadyApplied ResourceContext.Null
-                Assert.True afterApply
+                Assert.Equal(NoChanges, afterApply)
             })
         })
 }

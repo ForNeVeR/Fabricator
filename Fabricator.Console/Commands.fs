@@ -15,9 +15,9 @@ let private name(t: LoweredTask) = t.Resource.PresentableName
 let private outcomeMessage (t: LoweredTask) (outcome: TaskOutcome): string option =
     match t.Kind, outcome with
     | Check, CheckPassed -> Some "already applied."
-    | Check, CheckFailed -> Some "not applied."
+    | Check, ChangeNeeded _ -> Some "not applied."
     | Check, Blocked -> Some "skipped because a dependency has failed."
-    | Apply, Applied -> Some "applied."
+    | Apply, Applied _ -> Some "applied."
     | _, Errored e -> Some $"error:\n{e}"
     | _ -> None
 

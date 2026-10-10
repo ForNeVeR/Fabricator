@@ -30,12 +30,12 @@ type LoweredTask =
 
 
 type TaskOutcome =
-    /// The resource check has returned true.
+    /// The resource check has reported no changes.
     | CheckPassed
-    /// The resource check has returned false.
-    | CheckFailed
-    /// The resource has been applied successfully.
-    | Applied
+    /// The resource check has reported the change required to apply the resource.
+    | ChangeNeeded of ResourceChange
+    /// The resource has been applied successfully, making the change.
+    | Applied of ResourceChange
     /// The task was not required to run.
     | NotRequired
     /// The task has failed.
@@ -86,7 +86,7 @@ let lower (mode: ExecutionMode) (roots: Resource seq): TaskExecutor.TaskGraph<Lo
 
 let private isFailure = function
     | Errored _ | Blocked -> true
-    | CheckPassed | CheckFailed | Applied | NotRequired -> false
+    | CheckPassed | ChangeNeeded _ | Applied _ | NotRequired -> false
 
 /// Whether the exception should be reported as a resource failure, as opposed to the execution cancellation.
 let private isResourceError (ct: CancellationToken) (ex: exn) =
@@ -95,8 +95,8 @@ let private isResourceError (ct: CancellationToken) (ex: exn) =
 let private runCheck (resource: Resource) (context: ResourceContext): Async<TaskOutcome> = async {
     let! ct = Async.CancellationToken
     try
-        let! applied = resource.AlreadyApplied context
-        return if applied then CheckPassed else CheckFailed
+        let! change = resource.AlreadyApplied context
+        return if change = NoChanges then CheckPassed else ChangeNeeded change
     with
     | ex when isResourceError ct ex -> return Errored ex
 }
@@ -104,8 +104,8 @@ let private runCheck (resource: Resource) (context: ResourceContext): Async<Task
 let private runApply (resource: Resource) (context: ResourceContext): Async<TaskOutcome> = async {
     let! ct = Async.CancellationToken
     try
-        do! resource.Apply context
-        return Applied
+        let! change = resource.Apply context
+        return Applied change
     with
     | ex when isResourceError ct ex -> return Errored ex
 }
@@ -177,7 +177,7 @@ let run
         match ownCheck with
         | CheckPassed -> async.Return NotRequired
         | Errored _ | Blocked -> async.Return Blocked
-        | CheckFailed ->
+        | ChangeNeeded _ ->
             withLock locks resource (fun () -> runApply resource (start loweredTask))
-        | Applied | NotRequired ->
+        | Applied _ | NotRequired ->
             raise <| InvalidOperationException $"Unexpected check outcome for task \"{loweredTask}\": {ownCheck}."

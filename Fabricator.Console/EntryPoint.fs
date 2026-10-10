@@ -16,9 +16,10 @@ module ExitCodes =
     let NotAllApplied = 3
 
 let private printUsage() =
-    printfn "Arguments:"
-    printfn "apply - applies the resources to the current environment"
+    printfn "Arguments: (apply | check) [--brief]"
+    printfn "apply - applies the resources to the current environment, and shows the changes made"
     printfn "check - checks and shows the upcoming changes to the current environment, no actions taken"
+    printfn "--brief - only shows the final state of every resource, omitting the details of the changes"
 
 /// Runs the command until it completes, cancelling it on the first Ctrl+C. Returns None if the command was cancelled
 /// or has failed.
@@ -48,9 +49,9 @@ let private runCancellable (ui: ExecutionUi.IExecutionUi) (command: Async<'a>): 
         Console.CancelKeyPress.RemoveHandler onCancelKeyPress
 
 /// Writes the report. Returns false if writing the output has failed.
-let private tryWriteReport (ui: ExecutionUi.IExecutionUi) (report: Report): bool =
+let private tryWriteReport (ui: ExecutionUi.IExecutionUi) (showChanges: bool) (report: Report): bool =
     try
-        ui.WriteReport report
+        ui.WriteReport(report, showChanges)
         true
     with
     | ex ->
@@ -65,18 +66,20 @@ let internal run (ui: ExecutionUi.IExecutionUi) (args: string seq) (resources: R
         then Array.skip 1 args
         else args
 
+    let brief, args = args |> Array.contains "--brief", args |> Array.filter ((<>) "--brief")
+    let writeReport = tryWriteReport ui (not brief)
     match args with
     | [|"apply"|] ->
         match apply ui resources |> runCancellable ui with
         | Some report ->
-            if not(tryWriteReport ui report) then ExitCodes.ExecutionError
+            if not(writeReport report) then ExitCodes.ExecutionError
             elif Report.isSuccessful report then ExitCodes.Success
             else ExitCodes.ExecutionError
         | None -> ExitCodes.ExecutionError
     | [|"check"|] ->
         match check ui resources |> runCancellable ui with
         | Some report ->
-            if not(tryWriteReport ui report) then ExitCodes.ExecutionError
+            if not(writeReport report) then ExitCodes.ExecutionError
             else
                 match Report.checkStatus report with
                 | AllApplied -> ExitCodes.Success
@@ -100,10 +103,15 @@ let internal run (ui: ExecutionUi.IExecutionUi) (args: string seq) (resources: R
 /// </para>
 /// <para>
 /// After the execution has finished (unless it was cancelled), a report listing every processed resource with its
-/// final state is printed. If the output fails, the execution ends with an error.
+/// final state is printed. Under each resource line, the report shows the change the resource requires (for
+/// <c>check</c>) or has made (for <c>apply</c>), if the resource describes it (see
+/// <see cref="T:Fabricator.Core.ResourceChange"/>); the <c>--brief</c> flag omits these details. If the output fails,
+/// the execution ends with an error.
 /// </para>
 /// </remarks>
-/// <param name="args">The command-line arguments.</param>
+/// <param name="args">
+/// The command-line arguments: <c>apply</c> or <c>check</c>, optionally together with <c>--brief</c>.
+/// </param>
 /// <param name="resources">The root resources, i.e., the resources describing the desired environment state.</param>
 /// <returns>The process exit code.</returns>
 let main (args: string seq) (resources: Resource seq): int =

@@ -28,7 +28,7 @@ Basic Workflow
 --------------
 To start using Fabricator, you should:
 1. Create a new F# script file, with contents similar to the [example][].
-2. Run the script with `dotnet fsi ./script.fsx check` — this will check the environment and show the changes that are about to be performed.
+2. Run the script with `dotnet fsi ./script.fsx check` — this will check the environment and show the changes that are about to be performed (add `--brief` to only see which resources are not applied, without the change details).
 3. If everything's alright, run the script via `dotnet fsi ./script.fsx apply` — this will apply the changes to the current environment.
 
 Quick script example:
