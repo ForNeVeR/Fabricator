@@ -248,23 +248,48 @@ module internal Report =
         elif text.EndsWith '\n' then text.Substring(0, text.Length - 1)
         else text
 
+    /// The line ending style of the text, or None if it has no line breaks.
+    let private lineEnding(text: string): string option =
+        let count (s: string) = (text.Length - text.Replace(s, "").Length) / s.Length
+        let crlf = count "\r\n"
+        let styles =
+            [
+                "CRLF", crlf
+                "LF", count "\n" - crlf
+                "CR", count "\r" - crlf
+            ]
+            |> List.filter (fun (_, n) -> n > 0)
+        match styles with
+        | [] -> None
+        | [ style, _ ] -> Some style
+        | _ -> Some "mixed"
+
     let private changedFilePatch (name: string) (oldText: string) (newText: string): DetailLine seq =
+        let oldLineEnding, newLineEnding = lineEnding oldText, lineEnding newText
         // DiffPlex presents the final line break as an additional empty line, so it is removed when both texts have it.
         let oldText, newText =
             if oldText.EndsWith '\n' && newText.EndsWith '\n'
             then trimFinalLineBreak oldText, trimFinalLineBreak newText
             else oldText, newText
+        // DiffPlex compares the lines ignoring their endings, and produces no patch at all if only they differ.
         let patch = UnidiffRenderer.GenerateUnidiff(oldText, newText, name, name, ignoreWhitespace = false)
-        let lines, _ = splitLines patch
-        lines |> Seq.mapi (fun i text ->
-            let kind =
-                if i < 2 then DetailKind.FileHeader
-                elif text.StartsWith "@@" then DetailKind.HunkHeader
-                elif text.StartsWith '+' then DetailKind.Added
-                elif text.StartsWith '-' then DetailKind.Removed
-                else DetailKind.Plain
-            line kind text
-        )
+        let patchLines = splitLines patch |> fst
+        let hunkLines = patchLines |> Array.skip(min 2 patchLines.Length)
+        seq {
+            yield line DetailKind.FileHeader $"--- {name}"
+            yield line DetailKind.FileHeader $"+++ {name}"
+            match oldLineEnding, newLineEnding with
+            | Some oldStyle, Some newStyle when oldStyle <> newStyle ->
+                yield line DetailKind.Plain $"line endings: {oldStyle} → {newStyle}"
+            | _ -> ()
+            for text in hunkLines do
+                let kind =
+                    if text.StartsWith "@@" then DetailKind.HunkHeader
+                    elif text.StartsWith '+' then DetailKind.Added
+                    elif text.StartsWith '-' then DetailKind.Removed
+                    else DetailKind.Plain
+                yield line kind text
+        }
 
     /// The lines describing the change, to show under the report line.
     let details(change: ResourceChange): DetailLine seq =

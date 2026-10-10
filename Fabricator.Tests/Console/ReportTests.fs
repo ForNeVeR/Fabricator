@@ -223,6 +223,28 @@ let ``Text diff headers are not confused with the changed lines``(): unit =
     )
 
 [<Fact>]
+let ``Text diff of line endings only shows the line ending change``(): unit =
+    let change = TextDiff { Name = "f"; OldText = Some "a\r\nb\r\n"; NewText = "a\nb\n" }
+    Assert.Equal<string seq>([ "--- f"; "+++ f"; "line endings: CRLF → LF" ], detailTexts change)
+    Assert.Equal<DetailKind seq>(
+        [ DetailKind.FileHeader; DetailKind.FileHeader; DetailKind.Plain ],
+        detailKinds change
+    )
+
+[<Fact>]
+let ``Text diff shows the line ending change together with the content change``(): unit =
+    let change = TextDiff { Name = "f"; OldText = Some "a\nb\n"; NewText = "a\r\nB\r\n" }
+    Assert.Equal<string seq>(
+        [ "--- f"; "+++ f"; "line endings: LF → CRLF"; "@@ -1,2 +1,2 @@"; " a"; "-b"; "+B" ],
+        detailTexts change
+    )
+
+[<Fact>]
+let ``Text diff reports mixed line endings``(): unit =
+    let change = TextDiff { Name = "f"; OldText = Some "a\r\nb\n"; NewText = "a\nb\n" }
+    Assert.Equal<string seq>([ "--- f"; "+++ f"; "line endings: mixed → LF" ], detailTexts change)
+
+[<Fact>]
 let ``New file diff creates the file``(): unit =
     let change = TextDiff { Name = "file.txt"; OldText = None; NewText = "a\r\nb\r\n" }
     Assert.Equal<string seq>(
