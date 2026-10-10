@@ -100,7 +100,7 @@ type HostsFile =
                             |> Array.mapi (fun i l ->
                                 if i = index then updatedLine
                                 else l)
-                            |> Array.append [| newLine |]
+                            |> Array.insertAt (index + 1) newLine
                         else
                             // Single host entry: replace
                             lines |> Array.mapi (fun i l ->

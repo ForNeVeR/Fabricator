@@ -132,6 +132,19 @@ let ``Apply splits multi-host entry when updating IP``(): Task = task {
 }
 
 [<Fact>]
+let ``Apply puts the entry split from a multi-host entry after it``(): Task = task {
+    let! content =
+        testApplyAndRead
+            "# header\n192.168.1.1 example.com another.com\n127.0.0.1 localhost\n"
+            "10.0.0.1"
+            "example.com"
+    Assert.Equal<string>(
+        [| "# header"; "192.168.1.1 another.com"; "10.0.0.1 example.com"; "127.0.0.1 localhost" |],
+        content.ReplaceLineEndings("\n").TrimEnd('\n').Split '\n'
+    )
+}
+
+[<Fact>]
 let ``Apply splits multi-host entry with inline comment``(): Task = task {
     let! content = testApplyAndRead "192.168.1.1 example.com another.com # production hosts\n" "10.0.0.1" "example.com"
     Assert.Contains("10.0.0.1 example.com", content)
