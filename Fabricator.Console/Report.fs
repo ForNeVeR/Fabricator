@@ -322,13 +322,23 @@ module internal Report =
         elif newText.Length = 0 then wholeTextPatch oldHeader newHeader DetailKind.Removed oldText
         else diffPatch name oldText newText
 
+    /// The maximum number of the detail lines shown under a report line; the rest are summarized by one more line.
+    let MaxDetailLines = 200
+
     /// The lines describing the change, to show under the report line.
     let details(change: ResourceChange): DetailLine seq =
-        match change with
-        | NoChanges | ChangeWithNoDescription -> []
-        | NamedChange description -> splitLines description |> fst |> Seq.map (line DetailKind.Plain)
-        | TextDiff { Name = name; OldText = None; NewText = newText } -> newFilePatch name newText
-        | TextDiff { Name = name; OldText = Some oldText; NewText = newText } -> changedFilePatch name oldText newText
+        let lines =
+            match change with
+            | NoChanges | ChangeWithNoDescription -> Seq.empty
+            | NamedChange description -> splitLines description |> fst |> Seq.map (line DetailKind.Plain)
+            | TextDiff { Name = name; OldText = None; NewText = newText } -> newFilePatch name newText
+            | TextDiff { Name = name; OldText = Some oldText; NewText = newText } -> changedFilePatch name oldText newText
+            |> Seq.toArray
+        if lines.Length <= MaxDetailLines then lines
+        else
+            Array.append
+                (Array.take MaxDetailLines lines)
+                [| line DetailKind.Plain $"… {lines.Length - MaxDetailLines} more lines" |]
 
     /// The indentation of the detail lines relative to the report line.
     let detailIndent = "    "

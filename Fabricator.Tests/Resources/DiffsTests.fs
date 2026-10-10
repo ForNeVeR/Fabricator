@@ -60,6 +60,31 @@ let ``Content with zero bytes is binary``(): unit =
         Diffs.fileChange "f" (Some [| 1uy; 0uy; 2uy |]) (utf8 "text")
     )
 
+let private textOfSize(size: int64) = Array.create (int size) (byte 'a')
+
+[<Fact>]
+let ``New text file larger than the limit is described with its size``(): unit =
+    let size = Diffs.MaxTextDiffSize + 1L
+    Assert.Equal(NamedChange $"new file \"f\", {size} bytes", Diffs.fileChange "f" None (textOfSize size))
+
+[<Fact>]
+let ``Text file update larger than the limit is described with the sizes``(): unit =
+    let size = Diffs.MaxTextDiffSize + 1L
+    Assert.Equal(
+        NamedChange $"file update \"f\", 4 bytes → {size} bytes",
+        Diffs.fileChange "f" (Some(utf8 "text")) (textOfSize size)
+    )
+    Assert.Equal(
+        NamedChange $"file update \"f\", {size} bytes → 4 bytes",
+        Diffs.fileChange "f" (Some(textOfSize size)) (utf8 "text")
+    )
+
+[<Fact>]
+let ``Text file of the limit size produces a diff``(): unit =
+    match Diffs.fileChange "f" (Some(utf8 "text")) (textOfSize Diffs.MaxTextDiffSize) with
+    | TextDiff _ -> ()
+    | other -> Assert.Fail $"Unexpected change: {other}"
+
 [<Fact>]
 let ``Content with invalid UTF-8 is binary``(): unit =
     let invalid = [| 0x61uy; 0xFFuy; 0xFEuy |]

@@ -323,6 +323,21 @@ let ``Empty new file diff has no hunks``(): unit =
     let change = TextDiff { Name = "f"; OldText = None; NewText = "" }
     Assert.Equal<string seq>([ "--- /dev/null"; "+++ f (new)" ], detailTexts change)
 
+[<Fact>]
+let ``Details longer than the limit are truncated``(): unit =
+    let text = String.concat "" [ for i in 1 .. 250 -> $"line {i}\n" ]
+    let details = Report.details(TextDiff { Name = "f"; OldText = None; NewText = text }) |> Seq.toList
+    Assert.Equal(Report.MaxDetailLines + 1, details.Length)
+    Assert.Equal("+line 197", details[Report.MaxDetailLines - 1].Text)
+    Assert.Equal({ Text = "… 53 more lines"; Kind = DetailKind.Plain }, List.last details)
+
+[<Fact>]
+let ``Details of the limit length are not truncated``(): unit =
+    let description = String.concat "\n" [ for i in 1 .. Report.MaxDetailLines -> $"line {i}" ]
+    let details = Report.details(NamedChange description) |> Seq.toList
+    Assert.Equal(Report.MaxDetailLines, details.Length)
+    Assert.Equal($"line {Report.MaxDetailLines}", (List.last details).Text)
+
 let private summaryOf states = reportOf states |> Report.formatSummary
 
 [<Fact>]
