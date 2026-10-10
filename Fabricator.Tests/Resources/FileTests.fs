@@ -80,6 +80,25 @@ let ``AlreadyApplied returns the text diff of the target file``(): Task = upcast
 }
 
 [<Fact>]
+let ``AlreadyApplied does not read a missing source when the target is missing``(): Task = upcast task {
+    let sourcePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())
+    let targetPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())
+    let resource = file(AbsoluteFile sourcePath, targetPath)
+    let! change = resource.AlreadyApplied ResourceContext.Null
+    Assert.Equal(NamedChange $"new file \"{targetPath}\"", change)
+}
+
+[<Fact>]
+let ``AlreadyApplied returns the creation diff when the target is missing``(): Task = upcast task {
+    let sourcePath = Path.GetTempFileName()
+    let targetPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())
+    do! File.WriteAllTextAsync(sourcePath, "text\n")
+    let resource = file(AbsoluteFile sourcePath, targetPath)
+    let! change = resource.AlreadyApplied ResourceContext.Null
+    Assert.Equal(TextDiff { Name = targetPath; OldText = None; NewText = "text\n" }, change)
+}
+
+[<Fact>]
 let ``Apply returns the creation diff for a new target file``(): Task = upcast task {
     let targetPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())
     try

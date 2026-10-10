@@ -40,15 +40,25 @@ type Files =
             return! Async.AwaitTask(File.WriteAllBytesAsync(path, bytes, ct))
         }
 
+        let sourceFilePath source =
+            match source with
+            | AbsoluteFile path -> Some path
+            | ContentFile path -> Some(Path.Combine(Environment.CurrentDirectory, path))
+            | GeneratedContent _ -> None
+
         let getContent source =
             match source with
-            | AbsoluteFile path ->
-                readAllBytesAsync path
-            | ContentFile path ->
-                let filePath = Path.Combine(Environment.CurrentDirectory, path)
-                readAllBytesAsync filePath
-            | GeneratedContent(_, generator) ->
-                generator() |> async.Return
+            | AbsoluteFile _ | ContentFile _ -> readAllBytesAsync(Option.get <| sourceFilePath source)
+            | GeneratedContent(_, generator) -> generator() |> async.Return
+
+        /// Returns None if the source file doesn't exist (yet), e.g. if it is created by a dependency.
+        let tryGetContent source = async {
+            match sourceFilePath source with
+            | Some path when not(File.Exists path) -> return None
+            | _ ->
+                let! content = getContent source
+                return Some content
+        }
 
         let readExistingContent() = async {
             if not(File.Exists targetAbsolutePath) then return None
@@ -62,9 +72,14 @@ type Files =
             DependsOn = dependencies dependsOn
             Lock = None
             AlreadyApplied = fun _ -> async {
-                let! existingContent = readExistingContent()
-                let! content = getContent source
-                return Diffs.fileChange targetAbsolutePath existingContent content
+                match! readExistingContent() with
+                | None ->
+                    match! tryGetContent source with
+                    | Some content -> return Diffs.fileChange targetAbsolutePath None content
+                    | None -> return NamedChange $"new file \"{targetAbsolutePath}\""
+                | Some existingContent ->
+                    let! content = getContent source
+                    return Diffs.fileChange targetAbsolutePath (Some existingContent) content
             }
             Apply = fun ctx -> async {
                 ctx.Reporter.Status "Reading the content"
