@@ -56,6 +56,7 @@ type Downloads =
             PresentableName = $"Download file from {uri} to {downloadPath}"
             DependsOn = dependencies dependsOn
             Lock = None
+            Secrets = Resource.NoSecrets
             AlreadyApplied = fun ctx -> async {
                 ctx.Reporter.Status "Computing hash"
                 let! downloadedHash = calcHash downloadPath

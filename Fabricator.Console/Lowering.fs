@@ -55,6 +55,27 @@ let private collectAll(roots: Resource seq): HashSet<Resource> =
     visited
 
 /// <summary>
+/// Lists all the resources reachable from the roots, each one once, with the dependencies going before their
+/// dependents.
+/// </summary>
+/// <remarks>
+/// The dependencies of a resource are ordered by name, since the order of
+/// <see cref="P:Fabricator.Core.Resource.DependsOn"/> is not stable between runs.
+/// </remarks>
+let orderResources(roots: Resource seq): Resource list =
+    let visited = HashSet<Resource>()
+    let result = ResizeArray<Resource>()
+    let rec walk(resource: Resource) =
+        if visited.Add resource then
+            for dependency in resource.DependsOn |> Seq.sortWith (fun a b ->
+                String.CompareOrdinal(a.PresentableName, b.PresentableName)) do
+                walk dependency
+            result.Add resource
+    for root in roots do
+        walk root
+    List.ofSeq result
+
+/// <summary>
 /// Converts the resource graph reachable from <paramref name="roots"/> to a graph of lowered tasks.
 /// </summary>
 /// <param name="mode">The execution mode.</param>
@@ -84,6 +105,33 @@ let lower (mode: ExecutionMode) (roots: Resource seq): TaskExecutor.TaskGraph<Lo
 
     tasks
 
+/// The secrets of the resource; a default (uninitialized) array is treated as empty.
+let private secretsOf(resource: Resource): SecretRef seq =
+    if resource.Secrets.IsDefault then Seq.empty else resource.Secrets
+
+let private isRequiredFor (kind: TaskKind) (secret: SecretRef) =
+    match kind, secret.RequestMode with
+    | Check, (SecretRequestMode.CheckOnly | SecretRequestMode.CheckAndApply) -> true
+    | Apply, (SecretRequestMode.ApplyOnly | SecretRequestMode.CheckAndApply) -> true
+    | Check, SecretRequestMode.ApplyOnly | Apply, SecretRequestMode.CheckOnly -> false
+
+/// The secrets required by the task's resource action.
+let secretsFor(task: LoweredTask): SecretRef seq =
+    secretsOf task.Resource |> Seq.filter (isRequiredFor task.Kind)
+
+/// <summary>
+/// The secrets that might be required by the execution of the resources in the <paramref name="mode"/>, in the order
+/// of the resources.
+/// </summary>
+let secretsToOpen (mode: ExecutionMode) (resources: Resource seq): SecretRef seq =
+    resources
+    |> Seq.collect secretsOf
+    |> Seq.filter (fun secret ->
+        match mode with
+        | CheckOnly -> isRequiredFor Check secret
+        | CheckAndApply -> true
+    )
+
 let private isFailure = function
     | Errored _ | Blocked -> true
     | CheckPassed | ChangeNeeded _ | Applied _ | NotRequired -> false
@@ -92,23 +140,28 @@ let private isFailure = function
 let private isResourceError (ct: CancellationToken) (ex: exn) =
     not (ex :? OperationCanceledException && ct.IsCancellationRequested)
 
-let private runCheck (resource: Resource) (context: ResourceContext): Async<TaskOutcome> = async {
+/// <summary>
+/// Runs the resource action with the context returned by <paramref name="start"/>, passing it the secrets fetched
+/// right before the action. The secrets are disposed right after the action.
+/// </summary>
+/// <remarks>The secret fetching errors are reported as the action errors.</remarks>
+let private runAction
+    (action: ResourceContext -> Async<ResourceChange>)
+    (toOutcome: ResourceChange -> TaskOutcome)
+    (start: unit -> ResourceContext)
+    (fetchSecrets: unit -> Async<Secrets.SecretValues>)
+    : Async<TaskOutcome> = async {
     let! ct = Async.CancellationToken
+    let context = start()
     try
-        let! change = resource.AlreadyApplied context
-        return if change = NoChanges then CheckPassed else ChangeNeeded change
+        use! secrets = fetchSecrets()
+        let! change = action { context with Secrets = secrets.Values }
+        return toOutcome change
     with
     | ex when isResourceError ct ex -> return Errored ex
 }
 
-let private runApply (resource: Resource) (context: ResourceContext): Async<TaskOutcome> = async {
-    let! ct = Async.CancellationToken
-    try
-        let! change = resource.Apply context
-        return Applied change
-    with
-    | ex when isResourceError ct ex -> return Errored ex
-}
+let private checkOutcome(change: ResourceChange) = if change = NoChanges then CheckPassed else ChangeNeeded change
 
 /// Semaphores of the resource concurrency groups, one per group.
 type Locks = IReadOnlyDictionary<ConcurrencyGroup, SemaphoreSlim>
@@ -153,21 +206,30 @@ let private withLock (locks: Locks) (resource: Resource) (action: unit -> Async<
 /// The semaphores of the concurrency groups, see <see cref="M:Fabricator.Console.Lowering.createLocks"/>.
 /// </param>
 /// <param name="start">
-/// Called right before the actual resource action (check or apply) starts. Returns the context to pass to the action.
+/// Called right before the actual resource action (check or apply) starts. Returns the context to pass to the action;
+/// its secrets are replaced with the ones fetched via <paramref name="fetchSecrets"/>.
+/// </param>
+/// <param name="fetchSecrets">
+/// Fetches the secrets required by the action (see <see cref="M:Fabricator.Console.Lowering.secretsFor"/>). Called
+/// after <paramref name="start"/>; the fetched secrets are disposed right after the action.
 /// </param>
 /// <param name="loweredTask">The task to execute.</param>
 /// <param name="inputs">The results of the task's prerequisites.</param>
 let run
     (locks: Locks)
     (start: LoweredTask -> ResourceContext)
+    (fetchSecrets: SecretRef seq -> Async<Secrets.SecretValues>)
     (loweredTask: LoweredTask)
     (inputs: IReadOnlyList<LoweredTask * TaskOutcome>)
     : Async<TaskOutcome> =
     let resource = loweredTask.Resource
+    let runLocked action toOutcome =
+        withLock locks resource (fun () ->
+            runAction action toOutcome (fun () -> start loweredTask) (fun () -> fetchSecrets(secretsFor loweredTask))
+        )
     match loweredTask.Kind with
     | Check when inputs |> Seq.exists (snd >> isFailure) -> async.Return Blocked
-    | Check ->
-        withLock locks resource (fun () -> runCheck resource (start loweredTask))
+    | Check -> runLocked resource.AlreadyApplied checkOutcome
     | Apply ->
         let ownCheck =
             inputs
@@ -177,7 +239,6 @@ let run
         match ownCheck with
         | CheckPassed -> async.Return NotRequired
         | Errored _ | Blocked -> async.Return Blocked
-        | ChangeNeeded _ ->
-            withLock locks resource (fun () -> runApply resource (start loweredTask))
+        | ChangeNeeded _ -> runLocked resource.Apply Applied
         | Applied _ | NotRequired ->
             raise <| InvalidOperationException $"Unexpected check outcome for task \"{loweredTask}\": {ownCheck}."

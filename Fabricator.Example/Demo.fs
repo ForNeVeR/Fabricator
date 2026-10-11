@@ -28,6 +28,7 @@ let private demo (name: string) (dependsOn: Resource seq) (apply: ResourceContex
     PresentableName = $"Demo: {name}"
     DependsOn = ImmutableHashSet.CreateRange dependsOn
     Lock = None
+    Secrets = Resource.NoSecrets
     AlreadyApplied = inspect
     Apply = fun ctx -> async {
         do! apply ctx

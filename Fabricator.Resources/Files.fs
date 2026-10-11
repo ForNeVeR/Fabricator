@@ -71,6 +71,7 @@ type Files =
             PresentableName = resourceName source
             DependsOn = dependencies dependsOn
             Lock = None
+            Secrets = Resource.NoSecrets
             AlreadyApplied = fun _ -> async {
                 match! readExistingContent() with
                 | None ->
@@ -109,6 +110,7 @@ type Files =
             PresentableName = $"Directory \"{path.Value}\""
             DependsOn = dependencies dependsOn
             Lock = None
+            Secrets = Resource.NoSecrets
             AlreadyApplied = fun _ -> async {
                 return if path.ExistsDirectory() then NoChanges else NamedChange $"new directory \"{path.Value}\""
             }
@@ -129,6 +131,7 @@ type Files =
             PresentableName = $"File \"{path.Value}\""
             DependsOn = dependencies dependsOn
             Lock = None
+            Secrets = Resource.NoSecrets
             AlreadyApplied = fun _ -> async {
                 return ChangeWithNoDescription
             }

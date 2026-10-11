@@ -62,6 +62,7 @@ type Chocolatey =
             PresentableName = $"Package {name}"
             DependsOn = dependencies dependsOn
             Lock = Some Chocolatey.ConcurrencyGroup
+            Secrets = Resource.NoSecrets
 
             AlreadyApplied = fun ctx -> async {
                 let! installedVersion = getInstalledPackageVersion ctx.Reporter

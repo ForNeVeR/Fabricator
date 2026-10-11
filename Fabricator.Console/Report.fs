@@ -7,7 +7,6 @@ namespace Fabricator.Console
 open System
 open System.Collections.Generic
 open DiffPlex
-open DiffPlex.Chunkers
 open DiffPlex.Renderer
 open Fabricator.Console.Lowering
 open Fabricator.Core
@@ -82,27 +81,6 @@ type internal Report =
 type internal CheckStatus = AllApplied | NotAllApplied | CheckError
 
 module internal Report =
-
-    /// <summary>
-    /// Lists all the resources reachable from the roots, each one once, with the dependencies going before their
-    /// dependents.
-    /// </summary>
-    /// <remarks>
-    /// The dependencies of a resource are ordered by name, since the order of
-    /// <see cref="P:Fabricator.Core.Resource.DependsOn"/> is not stable between runs.
-    /// </remarks>
-    let private orderResources(roots: Resource seq): Resource list =
-        let visited = HashSet<Resource>()
-        let result = ResizeArray<Resource>()
-        let rec walk(resource: Resource) =
-            if visited.Add resource then
-                for dependency in resource.DependsOn |> Seq.sortWith (fun a b ->
-                    String.CompareOrdinal(a.PresentableName, b.PresentableName)) do
-                    walk dependency
-                result.Add resource
-        for root in roots do
-            walk root
-        List.ofSeq result
 
     let private unexpected (resource: Resource) (outcomes: 'a): 'b =
         raise <| InvalidOperationException $"Unexpected outcome for resource \"{resource}\": {outcomes}."

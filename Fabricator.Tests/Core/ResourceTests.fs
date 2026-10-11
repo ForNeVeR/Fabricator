@@ -10,3 +10,11 @@ open Xunit
 [<Fact>]
 let ``NoDependencies is empty``(): unit =
     Assert.Empty Resource.NoDependencies
+
+[<Fact>]
+let ``NoSecrets is empty``(): unit =
+    Assert.Empty Resource.NoSecrets
+
+[<Fact>]
+let ``Null context has no secrets``(): unit =
+    Assert.Empty ResourceContext.Null.Secrets

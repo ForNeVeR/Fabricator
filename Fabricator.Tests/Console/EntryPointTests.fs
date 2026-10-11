@@ -9,6 +9,7 @@ open System.Text
 open Fabricator.Console
 open Fabricator.Core
 open Fabricator.Tests.FakeResource
+open Fabricator.Tests.FakeSecretStore
 
 open Xunit
 
@@ -62,6 +63,33 @@ let ``Brief report omits the changes``(arg1: string, arg2: string): unit =
     Assert.Equal(expectedExitCode, exitCode)
     Assert.Contains("R (", output)
     Assert.DoesNotContain("the change", output)
+
+[<Fact>]
+let ``Apply passes the secrets entered into the plain store``(): unit =
+    let store = PlainSecretStore()
+    let secret = { Store = store; Name = SecretName "token"; RequestMode = SecretRequestMode.ApplyOnly }
+    let r = FakeResource("R", EventLog(), None, [||], [ secret ])
+    let mutable received = None
+    r.OnApplyWithContext <- fun ctx -> async { received <- Some(plain ctx.Secrets[secret]) }
+    use output = new StringWriter()
+    let ui = ExecutionUi.PlainUi(output, ExecutionUi.SecretInput.ofReader(new StringReader "my token\n"))
+
+    let exitCode = EntryPoint.run ui [ "apply" ] [ r.Resource ]
+
+    Assert.Equal(EntryPoint.ExitCodes.Success, exitCode)
+    Assert.Equal(Some "my token", received)
+    let text = output.ToString()
+    Assert.Contains("Enter the secret \"token\": ", text)
+    Assert.DoesNotContain("my token", text)
+
+[<Fact>]
+let ``Store opening failure results in an execution error``(): unit =
+    let secret = { Store = PlainSecretStore(); Name = SecretName "token"; RequestMode = SecretRequestMode.CheckOnly }
+    let r = FakeResource("R", EventLog(), None, [||], [ secret ])
+    use output = new StringWriter()
+    // No input to read the secret from.
+    let exitCode = EntryPoint.run (ExecutionUi.PlainUi output) [ "check" ] [ r.Resource ]
+    Assert.Equal(EntryPoint.ExitCodes.ExecutionError, exitCode)
 
 [<Fact>]
 let ``Unknown flag is an argument error``(): unit =

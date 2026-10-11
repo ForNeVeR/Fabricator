@@ -81,4 +81,5 @@ let private resources = [
 let main(args: string[]): int =
     match args with
     | _ when args.Length > 0 && args[0] = "demo" -> EntryPoint.main args[1..] (Demo.resources(shawlUrl, shawlHash))
+    | _ when args.Length > 0 && args[0] = "demo-secret" -> EntryPoint.main args[1..] (DemoSecret.resources())
     | _ -> EntryPoint.main args resources
