@@ -34,6 +34,7 @@ type WindowsServices =
             PresentableName = $"Service \"{name}\""
             DependsOn = dependencies dependsOn
             Lock = None
+            Secrets = Resource.NoSecrets
             AlreadyApplied = fun _ -> async {
                 return change(WindowsServiceManager.GetService name)
             }

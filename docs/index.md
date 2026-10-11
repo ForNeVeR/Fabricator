@@ -68,6 +68,27 @@ The report ends with a short summary of the number of resources in each state, e
 
 To only print the resource states without the change details, pass the `--brief` flag, e.g. `dotnet fsi ./script.fsx check --brief`.
 
+Secrets
+-------
+A resource may require secrets, e.g. an access token for an API it calls. It lists them in `Secrets`, each one with the store to get it from, and the operations requiring it. The operation receives the secrets via its `ResourceContext`:
+
+```fsharp
+let token = { Store = store; Name = SecretName "api-token"; RequestMode = SecretRequestMode.ApplyOnly }
+// In the resource:
+Secrets = ImmutableArray.Create token
+Apply = fun ctx -> async {
+    do // Dispose the secret as soon as it's not needed anymore.
+        use value = ctx.Secrets[token]
+        // … call the API using the value …
+    // … continue without the secret …
+    return NamedChange "updated the remote entity"
+}
+```
+
+Fabricator opens all the required stores before checking or applying anything, so a store asking the user for input does it in the beginning of the execution. See [`Fabricator.Core`][core] for the details.
+
+To see the secrets in action, run the [example][] in the secret demo mode: `dotnet run --project Fabricator.Example -- demo-secret apply` (or `demo-secret check`). Note that the demo uses `PlainSecretStore`, which is insecure: it asks you to enter the secrets on every run, and keeps them in the process memory for the whole session.
+
 Packages
 --------
 - [Fabricator.Console][console]

@@ -4,11 +4,13 @@
 
 module Fabricator.Tests.Console.ExecutionUiTests
 
+open System
 open System.IO
 open System.Text.RegularExpressions
 open System.Threading.Tasks
 open Fabricator.Console
 open Fabricator.Core
+open Fabricator.Tests
 open Fabricator.Tests.FakeResource
 open Spectre.Console
 open Xunit
@@ -252,3 +254,64 @@ let ``Spectre UI writes the change details according to the flag``(showChanges: 
         (if showChanges then reportWithChangesLines else briefReportWithChangesLines),
         lines(Regex.Replace(text, "\u001b" + @"\[[0-9;]*m", ""))
     )
+
+let private readSecret(input: string) =
+    ExecutionUi.SecretInput.read(ExecutionUi.SecretInput.ofReader(new StringReader(input))) |> Async.StartAsTask
+
+[<Theory>]
+[<InlineData("secret\n", "secret")>]
+[<InlineData("secret\r\nother\r\n", "secret")>]
+[<InlineData("secret", "secret")>]
+[<InlineData("\n", "")>]
+[<InlineData("sexx\b\bcret\n", "secret")>]
+[<InlineData("\b\bsecret\n", "secret")>]
+[<InlineData("se\tcret\n", "secret")>]
+let ``Secret input reads a line``(input: string, expected: string): Task = task {
+    use! secret = readSecret input
+    Assert.True(secret.IsReadOnly())
+    Assert.Equal(expected, FakeSecretStore.plain secret)
+}
+
+[<Fact>]
+let ``Secret input reads consecutive lines``(): Task = task {
+    let input = ExecutionUi.SecretInput.ofReader(new StringReader "first\r\nsecond\r\n")
+    use! first = ExecutionUi.SecretInput.read input |> Async.StartAsTask
+    use! second = ExecutionUi.SecretInput.read input |> Async.StartAsTask
+    Assert.Equal("first", FakeSecretStore.plain first)
+    Assert.Equal("second", FakeSecretStore.plain second)
+}
+
+[<Fact>]
+let ``Secret input fails without input``(): Task = task {
+    let! ex = Assert.ThrowsAsync<InvalidOperationException>(fun () -> readSecret "" :> Task)
+    Assert.Equal("No input available to read the secret.", ex.Message)
+}
+
+[<Fact>]
+let ``Plain UI writes the secret prompt without echoing the secret``(): Task = task {
+    use output = new StringWriter()
+    let ui = ExecutionUi.PlainUi(output, ExecutionUi.SecretInput.ofReader(new StringReader "hunter2\n"))
+    use! secret = (ui :> ISecretStoreUi).ReadSecret "Password: " |> Async.StartAsTask
+    Assert.Equal("hunter2", FakeSecretStore.plain secret)
+    Assert.Equal("Password: " + Environment.NewLine, output.ToString())
+}
+
+[<Fact>]
+let ``Spectre UI writes the secret prompt without echoing the secret``(): Task = task {
+    use output = new StringWriter()
+    let input = ExecutionUi.SecretInput.ofReader(new StringReader "hunter2\n")
+    let ui = ExecutionUi.SpectreUi(createInteractiveConsole output, input)
+    use! secret = (ui :> ISecretStoreUi).ReadSecret "Password: " |> Async.StartAsTask
+    Assert.Equal("hunter2", FakeSecretStore.plain secret)
+    let text = output.ToString()
+    Assert.Contains("Password: ", text)
+    Assert.DoesNotContain("hunter2", text)
+}
+
+[<Fact>]
+let ``UI without secret input fails to read a secret``(): Task = task {
+    use output = new StringWriter()
+    let ui = ExecutionUi.PlainUi output :> ISecretStoreUi
+    let! _ = Assert.ThrowsAsync<InvalidOperationException>(fun () -> ui.ReadSecret "Password: " |> Async.StartAsTask :> Task)
+    ()
+}

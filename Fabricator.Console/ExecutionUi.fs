@@ -12,6 +12,7 @@ open System.Collections.Generic
 open System.Diagnostics
 open System.IO
 open System.Runtime.ExceptionServices
+open System.Security
 open System.Threading
 open System.Threading.Channels
 open System.Threading.Tasks
@@ -49,8 +50,80 @@ type IExecutionView =
     /// not. This signal is used by the UI to increment the finished resource counter.
     abstract ResourceFinished: unit -> unit
 
+/// <summary>
+/// A source of the characters entered by the user as a secret: returns the next character, or <c>None</c> at the end
+/// of the input. Enter is returned as <c>'\n'</c>, Backspace as <c>'\b'</c>.
+/// </summary>
+type SecretInput = unit -> Async<char option>
+
+module SecretInput =
+    /// An input that has no characters.
+    let none: SecretInput = fun () -> async.Return None
+
+    /// <summary>Reads the characters from the <paramref name="reader"/>, e.g. from the redirected standard input.</summary>
+    let ofReader(reader: TextReader): SecretInput =
+        let buffer = Array.zeroCreate<char> 1
+        fun () -> async {
+            let! ct = Async.CancellationToken
+            let! count = reader.ReadAsync(Memory buffer, ct).AsTask() |> Async.AwaitTask
+            let result = if count = 0 then None else Some buffer[0]
+            buffer[0] <- '\000'
+            return result
+        }
+
+    /// <summary>
+    /// Reads the key presses from the interactive console, without echoing them. The console is polled, so the reading
+    /// can be cancelled.
+    /// </summary>
+    let ofConsole(): SecretInput = fun () -> async {
+        while not Console.KeyAvailable do
+            do! Async.Sleep 20
+        let key = Console.ReadKey(intercept = true)
+        return
+            match key.Key with
+            | ConsoleKey.Enter -> Some '\n'
+            | ConsoleKey.Backspace -> Some '\b'
+            | _ -> Some key.KeyChar
+    }
+
+    /// <summary>
+    /// Reads a secret from the <paramref name="input"/>, until the end of the line or the end of the input.
+    /// </summary>
+    /// <remarks>
+    /// <c>'\b'</c> removes the last character; <c>'\r'</c> and other control characters are ignored. Fails if the input
+    /// has ended before anything was entered.
+    /// </remarks>
+    let read(input: SecretInput): Async<SecureString> = async {
+        let secret = new SecureString()
+        let succeeded = ref false
+        try
+            let finished = ref false
+            let anyInput = ref false
+            while not finished.Value do
+                match! input() with
+                | None ->
+                    if not anyInput.Value then
+                        raise <| InvalidOperationException "No input available to read the secret."
+                    finished.Value <- true
+                | Some c ->
+                    anyInput.Value <- true
+                    match c with
+                    | '\n' -> finished.Value <- true
+                    | '\b' -> if secret.Length > 0 then secret.RemoveAt(secret.Length - 1)
+                    | c when Char.IsControl c -> ()
+                    | c -> secret.AppendChar c
+            secret.MakeReadOnly()
+            succeeded.Value <- true
+        finally
+            // Also covers cancellation, which skips the exception handlers of async computations.
+            if not succeeded.Value then secret.Dispose()
+        return secret
+    }
+
 /// The console UI.
 type IExecutionUi =
+    inherit ISecretStoreUi
+
     /// <summary>Shows an execution while the <paramref name="action"/> is running.</summary>
     /// <param name="header">The line written before the execution starts.</param>
     /// <param name="title">The short title of the execution, shown together with its overall progress.</param>
@@ -167,10 +240,39 @@ let private isUnicode(writer: TextWriter) =
     let console = AnsiConsole.Create(AnsiConsoleSettings(Out = AnsiConsoleOutput writer))
     console.Profile.Capabilities.Unicode
 
-/// The UI writing only the ordered log, as plain text.
-type PlainUi(writer: TextWriter) =
+/// <summary>
+/// Writes the <paramref name="prompt"/> using <paramref name="write"/>, then reads a secret from the
+/// <paramref name="input"/>, and ends the prompt line using <paramref name="writeLine"/>.
+/// </summary>
+let private readSecret
+    (write: string -> unit)
+    (writeLine: unit -> unit)
+    (input: SecretInput)
+    (prompt: string)
+    : Async<SecureString> = async {
+    write prompt
+    try
+        return! SecretInput.read input
+    finally
+        writeLine()
+}
+
+/// <summary>The UI writing only the ordered log, as plain text.</summary>
+/// <param name="writer">The output.</param>
+/// <param name="secretInput">The input used to read the secrets.</param>
+type PlainUi(writer: TextWriter, secretInput: SecretInput) =
     let useEmoji = isUnicode writer
     let writer = TextWriter.Synchronized writer
+
+    /// <summary>Creates the UI that is not able to read secrets.</summary>
+    new(writer: TextWriter) = PlainUi(writer, SecretInput.none)
+
+    interface ISecretStoreUi with
+        member _.ReadSecret prompt =
+            let write(text: string) =
+                writer.Write text
+                writer.Flush()
+            readSecret write (fun () -> writer.WriteLine()) secretInput prompt
 
     interface IExecutionUi with
         member _.WriteLine line = writer.WriteLine line
@@ -484,8 +586,19 @@ let private freeLines = 10
 let maxTaskRows(consoleHeight: int): int =
     max 1 (consoleHeight - freeLines - liveDisplayExtraRows)
 
+/// <summary>
 /// The UI showing the live progress display on an interactive console, with the ordered log above it.
-type SpectreUi(console: IAnsiConsole) =
+/// </summary>
+/// <param name="console">The console.</param>
+/// <param name="secretInput">The input used to read the secrets.</param>
+type SpectreUi(console: IAnsiConsole, secretInput: SecretInput) =
+    /// <summary>Creates the UI that is not able to read secrets.</summary>
+    new(console: IAnsiConsole) = SpectreUi(console, SecretInput.none)
+
+    interface ISecretStoreUi with
+        member _.ReadSecret prompt =
+            readSecret (fun text -> console.Write(Text text)) (fun () -> console.WriteLine()) secretInput prompt
+
     interface IExecutionUi with
         member _.WriteLine line = writeLines console [| line |]
         member _.WriteReport(report, showChanges) =
@@ -540,7 +653,10 @@ type SpectreUi(console: IAnsiConsole) =
 /// Chooses the UI for the current console: the live display for interactive ANSI terminals, plain text otherwise.
 let forCurrentConsole(): IExecutionUi =
     let capabilities = AnsiConsole.Profile.Capabilities
+    // A redirected input allows passing the secrets from a script; otherwise, the key presses are read without echo,
+    // even if the output is redirected.
+    let secretInput = if Console.IsInputRedirected then SecretInput.ofReader Console.In else SecretInput.ofConsole()
     // The live display redraws itself via ANSI cursor movements.
     if capabilities.Interactive && capabilities.Ansi && not Console.IsOutputRedirected
-    then SpectreUi AnsiConsole.Console
-    else PlainUi Console.Out
+    then SpectreUi(AnsiConsole.Console, secretInput)
+    else PlainUi(Console.Out, secretInput)

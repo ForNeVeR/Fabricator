@@ -98,6 +98,11 @@ let internal run (ui: ExecutionUi.IExecutionUi) (args: string seq) (resources: R
 /// parallel.
 /// </para>
 /// <para>
+/// Before processing the resources, the stores of the secrets they require are opened (see
+/// <see cref="P:Fabricator.Core.Resource.Secrets"/>). If a store asks for input, it is read from the console without
+/// echo, or, if the standard input is redirected, from the standard input line by line.
+/// </para>
+/// <para>
 /// On the first Ctrl+C, no new resource checks or applications are started, the running ones are cancelled via their
 /// cancellation tokens, and the execution ends with an error after all of them have finished.
 /// </para>

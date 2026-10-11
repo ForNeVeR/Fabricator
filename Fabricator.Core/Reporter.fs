@@ -4,6 +4,10 @@
 
 namespace Fabricator.Core
 
+open System.Collections.Generic
+open System.Collections.Immutable
+open System.Security
+
 /// The unit of the values reported via <see cref="T:Fabricator.Core.IProgressReporter"/>, used to present them.
 type ProgressUnit =
     /// Abstract items, e.g. processed files. Presented as a percentage of the total.
@@ -71,9 +75,37 @@ type ResourceContext =
     {
         /// The reporter of the status, progress, and log of the operation.
         Reporter: IReporter
+
+        /// <summary>
+        /// The secrets required by the operation (see <see cref="P:Fabricator.Core.Resource.Secrets"/>): for a check,
+        /// the ones requested in <see cref="F:Fabricator.Core.SecretRequestMode.CheckOnly"/> and
+        /// <see cref="F:Fabricator.Core.SecretRequestMode.CheckAndApply"/> modes; for an application, the ones
+        /// requested in <see cref="F:Fabricator.Core.SecretRequestMode.ApplyOnly"/> and
+        /// <see cref="F:Fabricator.Core.SecretRequestMode.CheckAndApply"/> modes.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The secrets are fetched from their stores right before the operation starts, and are disposed right after
+        /// it finishes. Every string is only valid for this operation: don't keep it after the operation has finished.
+        /// </para>
+        /// <para>
+        /// The operation is encouraged to dispose every string as soon as it is not needed anymore, even if the
+        /// operation itself is not finished yet (disposing a string several times is safe).
+        /// </para>
+        /// <para>
+        /// Note that <see cref="T:System.Security.SecureString"/> provides little actual protection: it is mostly used
+        /// to indicate that the string should be treated carefully, and to allow cleaning it up from the memory as soon
+        /// as possible.
+        /// </para>
+        /// </remarks>
+        Secrets: IReadOnlyDictionary<SecretRef, SecureString>
     }
 
 /// Helper functions to work with <see cref="T:Fabricator.Core.ResourceContext"/>.
 module ResourceContext =
-    /// A context ignoring everything reported to it, e.g. for calling the resource functions directly in tests.
-    let Null: ResourceContext = { Reporter = Reporter.Null }
+    /// A context ignoring everything reported to it, and having no secrets, e.g. for calling the resource functions
+    /// directly in tests.
+    let Null: ResourceContext = {
+        Reporter = Reporter.Null
+        Secrets = ImmutableDictionary<SecretRef, SecureString>.Empty
+    }

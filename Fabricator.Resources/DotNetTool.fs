@@ -58,6 +58,7 @@ type DotNetTool =
             PresentableName = $"{name} {version}"
             DependsOn = dependencies dependsOn
             Lock = Some(DotNetTool.ConcurrencyGroup installationPath)
+            Secrets = Resource.NoSecrets
             AlreadyApplied = fun ctx -> async {
                 let! installed = installedVersion ctx
                 return change installed

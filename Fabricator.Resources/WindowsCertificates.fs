@@ -118,6 +118,7 @@ type WindowsCertificates =
                 $"Certificate \"{certificatePath.FileName}\" in {storeLocation.Location}/{storeLocation.StoreName}"
             DependsOn = dependencies dependsOn
             Lock = None
+            Secrets = Resource.NoSecrets
 
             AlreadyApplied = fun _ -> async {
                 let certificate = cert.Value

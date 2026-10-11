@@ -106,6 +106,25 @@ type Resource =
         /// not rely on the environment staying unchanged since the check.
         /// </remarks>
         Lock: ConcurrencyGroup option
+
+        /// <summary>
+        /// The secrets the resource requires. Every secret is passed to the operations of the resource defined by its
+        /// <see cref="P:Fabricator.Core.SecretRef.RequestMode"/>, via
+        /// <see cref="P:Fabricator.Core.ResourceContext.Secrets"/>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Before running any checks or applications, Fabricator opens all the stores of the secrets that might be
+        /// required by the execution (one by one), and closes them after the execution. Every secret is fetched from
+        /// its store right before the operation requiring it starts, and disposed right after it finishes. If any
+        /// store fails to open, the execution fails without checking or applying anything. If a secret fails to be
+        /// fetched, the operation requiring it fails.
+        /// </para>
+        /// <para>
+        /// Use <see cref="P:Fabricator.Core.ResourceModule.NoSecrets"/> for resources without secrets.
+        /// </para>
+        /// </remarks>
+        Secrets: ImmutableArray<SecretRef>
     }
     override this.ToString() = this.PresentableName
 
@@ -114,3 +133,6 @@ module Resource =
 
     /// An empty dependency set, to be used for resources without dependencies.
     let NoDependencies: ImmutableHashSet<Resource> = ImmutableHashSet<Resource>.Empty
+
+    /// An empty secret list, to be used for resources without secrets.
+    let NoSecrets: ImmutableArray<SecretRef> = ImmutableArray<SecretRef>.Empty

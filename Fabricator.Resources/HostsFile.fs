@@ -128,6 +128,7 @@ type HostsFile =
             PresentableName = $"Host file entry \"{host}\""
             DependsOn = dependencies dependsOn
             Lock = Some(HostsFile.ConcurrencyGroup filePath)
+            Secrets = Resource.NoSecrets
 
             AlreadyApplied = fun _ -> async {
                 ensureExists()

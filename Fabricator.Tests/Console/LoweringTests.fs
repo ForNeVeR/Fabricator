@@ -124,6 +124,7 @@ let ``Resources with equal contents are lowered separately``(): unit =
         PresentableName = "R"
         DependsOn = Resource.NoDependencies
         Lock = None
+        Secrets = Resource.NoSecrets
         AlreadyApplied = alreadyApplied
         Apply = apply
     }
