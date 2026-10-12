@@ -9,8 +9,8 @@ open System.Collections.Immutable
 open System.Security
 
 /// <summary>
-/// The name of a secret in a secret store, e.g. <c>SecretName "dns-provider-token"</c>. This is only a label used to
-/// look the secret up, not a cryptographic key.
+/// The name of a secret in a secret store, e.g. <c>SecretName "dns-provider-token"</c>. This is a label used to look
+/// the secret up.
 /// </summary>
 /// <remarks>Names are compared by value: equal names in the same store denote the same secret.</remarks>
 type SecretName =
@@ -27,7 +27,7 @@ type ISecretStoreUi =
     /// Shows the <paramref name="prompt"/> to the user and reads a secret (e.g. a password or a token) they enter. The
     /// entered text is not echoed.
     /// </summary>
-    /// <param name="prompt">The prompt, e.g. <c>Enter the password: </c>.</param>
+    /// <param name="prompt">The prompt, e.g. <c>Enter the password:</c>.</param>
     /// <returns>
     /// The entered secret, as a read-only string. The caller owns it, and should dispose it as soon as it is not
     /// needed.
@@ -61,13 +61,13 @@ type ISecretStoreScope =
     /// <param name="name">The name of the secret.</param>
     /// <returns>
     /// A new string instance on every call. The caller owns it and disposes it as soon as it is not needed, so it
-    /// should not be shared with the store or with other callers.
+    /// should not be shared with the store or with other callers. <c>null</c> if the secret was not found in the store.
     /// </returns>
     /// <remarks>
     /// May be called concurrently, so the implementations should be thread-safe. Only called between the scope opening
     /// and its disposal.
     /// </remarks>
-    abstract GetSecret: name: SecretName -> Async<SecureString>
+    abstract GetSecret: name: SecretName -> Async<SecureString | null>
 
 /// <summary>
 /// A secret store: a storage of the secrets (passwords, tokens, etc.) required by the resources, see

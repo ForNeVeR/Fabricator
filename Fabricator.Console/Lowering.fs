@@ -105,10 +105,6 @@ let lower (mode: ExecutionMode) (roots: Resource seq): TaskExecutor.TaskGraph<Lo
 
     tasks
 
-/// The secrets of the resource; a default (uninitialized) array is treated as empty.
-let private secretsOf(resource: Resource): SecretRef seq =
-    if resource.Secrets.IsDefault then Seq.empty else resource.Secrets
-
 let private isRequiredFor (kind: TaskKind) (secret: SecretRef) =
     match kind, secret.RequestMode with
     | Check, (SecretRequestMode.CheckOnly | SecretRequestMode.CheckAndApply) -> true
@@ -117,7 +113,7 @@ let private isRequiredFor (kind: TaskKind) (secret: SecretRef) =
 
 /// The secrets required by the task's resource action.
 let secretsFor(task: LoweredTask): SecretRef seq =
-    secretsOf task.Resource |> Seq.filter (isRequiredFor task.Kind)
+    task.Resource.Secrets |> Seq.filter (isRequiredFor task.Kind)
 
 /// <summary>
 /// The secrets that might be required by the execution of the resources in the <paramref name="mode"/>, in the order
@@ -125,7 +121,7 @@ let secretsFor(task: LoweredTask): SecretRef seq =
 /// </summary>
 let secretsToOpen (mode: ExecutionMode) (resources: Resource seq): SecretRef seq =
     resources
-    |> Seq.collect secretsOf
+    |> Seq.collect _.Secrets
     |> Seq.filter (fun secret ->
         match mode with
         | CheckOnly -> isRequiredFor Check secret

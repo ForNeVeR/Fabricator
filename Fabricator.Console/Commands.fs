@@ -21,10 +21,20 @@ let private outcomeMessage (t: LoweredTask) (outcome: TaskOutcome): string optio
     | _, Errored e -> Some $"error:\n{e}"
     | _ -> None
 
-/// <summary>Executes the graph of the tasks lowered from the <paramref name="roots"/> in the mode.</summary>
+/// <summary>
+/// Executes the graph of the tasks lowered from the <paramref name="roots"/> in the <paramref name="mode"/>.
+/// </summary>
+/// <param name="ui">The UI showing the execution. Also used by the secret stores while they are being opened.</param>
+/// <param name="header">The line written before the execution starts.</param>
+/// <param name="title">The short title of the execution, shown together with its overall progress.</param>
+/// <param name="mode">Whether the resources are only checked, or also applied.</param>
+/// <param name="roots">The root resources. Their dependencies are executed as well.</param>
+/// <returns>The outcomes of all the lowered tasks.</returns>
 /// <remarks>
-/// Before any task starts, the stores of the secrets that may be required by the tasks are opened, one by one. They are
-/// closed after all the tasks have finished. If any store fails to open, no task is run.
+/// <para>Before any task starts, this function will open the secret stores required by the tasks, one by one. They are
+/// closed after all the tasks have finished. If any store fails to open, no task is run.</para>
+/// <para>The overall progress counts resources, not tasks: a resource is finished when its last task has finished (the
+/// apply task, or the check task if the resource is only checked), no matter the outcome.</para>
 /// </remarks>
 let private execute (ui: IExecutionUi) (header: string) (title: string) (mode: ExecutionMode) (roots: Resource[])
                     : Async<IReadOnlyDictionary<LoweredTask, TaskOutcome>> = async {
@@ -41,7 +51,7 @@ let private execute (ui: IExecutionUi) (header: string) (title: string) (mode: E
                 let started = view.StartTask(name t)
                 taskView <- Some started
                 if t.Kind = Apply then started.Reporter.Log "applying…"
-                // The secrets are added by the task itself, right before the resource action.
+                // The secrets are added later by the task itself, right before the resource action.
                 { ResourceContext.Null with Reporter = started.Reporter }
 
             try
