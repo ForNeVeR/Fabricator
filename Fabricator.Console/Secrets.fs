@@ -13,19 +13,19 @@ open System.Security
 open Fabricator.Core
 
 /// Disposes all the objects, even if some of them fail. Returns the errors.
-let private tryDisposeAll(disposables: IDisposable seq): exn list = [
+let private tryDisposeAll(disposables: IDisposable seq): exn[] = [|
     for disposable in disposables do
         try
             disposable.Dispose()
         with
         | e -> e
-]
+|]
 
 /// Disposes all the objects, even if some of them fail; then throws the error if there was one.
 let private disposeAll(disposables: IDisposable seq): unit =
     match tryDisposeAll disposables with
-    | [] -> ()
-    | [ e ] -> ExceptionDispatchInfo.Capture(e).Throw()
+    | [| |] -> ()
+    | [| e |] -> ExceptionDispatchInfo.Capture(e).Throw()
     | errors -> raise <| AggregateException errors
 
 /// The secrets fetched for a single operation. Disposing this object disposes all the secrets.
@@ -44,7 +44,7 @@ type OpenScopes(scopes: IReadOnlyDictionary<ISecretStore, ISecretStoreScope>, op
     member _.Fetch(secrets: SecretRef seq): Async<SecretValues> = async {
         let values = Dictionary<SecretRef, SecureString>(HashIdentity.Reference)
         let result = new SecretValues(values)
-        let fetched = ref false
+        let mutable success = false
         try
             for secret in secrets do
                 if not(values.ContainsKey secret) then
@@ -53,13 +53,14 @@ type OpenScopes(scopes: IReadOnlyDictionary<ISecretStore, ISecretStoreScope>, op
                         | true, scope -> scope
                         | false, _ -> raise <| InvalidOperationException $"The store of secret {secret} is not opened."
                     let! value = scope.GetSecret secret.Name
-                    if obj.ReferenceEquals(value, null) then
+                    match value with
+                    | Null ->
                         raise <| InvalidOperationException $"The store has returned null for secret {secret}."
-                    values[secret] <- value
-            fetched.Value <- true
+                    | NonNull value -> values[secret] <- value
+            success <- true
         finally
-            // Also covers cancellation, which skips the exception handlers of async computations.
-            if not fetched.Value then tryDisposeAll [ result ] |> ignore
+            // Also covers cancellation.
+            if not success then tryDisposeAll [ result ] |> ignore
         return result
     }
 

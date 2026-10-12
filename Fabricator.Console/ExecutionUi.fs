@@ -95,28 +95,28 @@ module SecretInput =
     /// </remarks>
     let read(input: SecretInput): Async<SecureString> = async {
         let secret = new SecureString()
-        let succeeded = ref false
+        let mutable succeeded = false
         try
-            let finished = ref false
-            let anyInput = ref false
-            while not finished.Value do
+            let mutable finished = false
+            let mutable anyInput = false
+            while not finished do
                 match! input() with
                 | None ->
-                    if not anyInput.Value then
+                    if not anyInput then
                         raise <| InvalidOperationException "No input available to read the secret."
-                    finished.Value <- true
+                    finished <- true
                 | Some c ->
-                    anyInput.Value <- true
+                    anyInput <- true
                     match c with
-                    | '\n' -> finished.Value <- true
+                    | '\n' -> finished <- true
                     | '\b' -> if secret.Length > 0 then secret.RemoveAt(secret.Length - 1)
                     | c when Char.IsControl c -> ()
                     | c -> secret.AppendChar c
             secret.MakeReadOnly()
-            succeeded.Value <- true
+            succeeded <- true
         finally
             // Also covers cancellation, which skips the exception handlers of async computations.
-            if not succeeded.Value then secret.Dispose()
+            if not succeeded then secret.Dispose()
         return secret
     }
 
@@ -250,7 +250,7 @@ let private readSecret
     (input: SecretInput)
     (prompt: string)
     : Async<SecureString> = async {
-    write prompt
+    write $"{prompt} "
     try
         return! SecretInput.read input
     finally
@@ -270,7 +270,7 @@ type PlainUi(writer: TextWriter, secretInput: SecretInput) =
     interface ISecretStoreUi with
         member _.ReadSecret prompt =
             let write(text: string) =
-                writer.Write text
+                writer.Write $"{text} "
                 writer.Flush()
             readSecret write (fun () -> writer.WriteLine()) secretInput prompt
 

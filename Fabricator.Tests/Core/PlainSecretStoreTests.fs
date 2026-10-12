@@ -32,8 +32,10 @@ let private openStore (ui: ISecretStoreUi) (names: string list) =
     let context = { SecretNames = ImmutableArray.CreateRange(names |> Seq.map SecretName) }
     (PlainSecretStore() :> ISecretStore).Open(ui, context) |> Async.StartAsTask
 
-let private getSecret (scope: ISecretStoreScope) (name: string) =
-    scope.GetSecret(SecretName name) |> Async.StartAsTask
+let private getSecret (scope: ISecretStoreScope) (name: string) = task {
+    let! secret = scope.GetSecret(SecretName name) |> Async.StartAsTask
+    return nonNull secret
+}
 
 [<Fact>]
 let ``Open asks for every secret once in order``(): Task = task {

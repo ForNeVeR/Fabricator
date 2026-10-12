@@ -65,15 +65,15 @@ type PlainSecretStore() =
     interface ISecretStore with
         member _.Open(ui, context) = async {
             let scope = new PlainSecretStoreScope()
-            let opened = ref false
+            let mutable opened = false
             try
                 for name in context.SecretNames do
                     if not(scope.Contains name) then
                         let! secret = ui.ReadSecret $"Enter the secret \"{name}\": "
                         scope.Add(name, secret)
-                opened.Value <- true
+                opened <- true
             finally
                 // Also covers cancellation, which skips the exception handlers of async computations.
-                if not opened.Value then (scope :> IDisposable).Dispose()
+                if not opened then (scope :> IDisposable).Dispose()
             return scope :> ISecretStoreScope
         }

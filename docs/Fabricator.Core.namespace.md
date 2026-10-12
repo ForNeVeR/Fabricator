@@ -22,19 +22,19 @@ Use [`ResourceContext.Null`][resource-context-null] to call the resource functio
 
 Secrets
 -------
-A resource requiring secrets (passwords, access tokens, etc.) lists them in [`Resource.Secrets`][resource-secrets]. Each [`SecretRef`][secret-ref] names a secret in an [`ISecretStore`][secret-store], and defines which operations of the resource require it: the check, the application, or both.
+If a resource requires secrets (passwords, access tokens, etc.), it should list them in [`Resource.Secrets`][resource-secrets]. Each [`SecretRef`][secret-ref] names a secret in an [`ISecretStore`][secret-store], and defines which operations of the resource require it: the check, the application, or both.
 
 The secrets are handled the following way:
-1. Before checking or applying anything, Fabricator opens every store that might be required by the execution, one by one. While opening, a store may interact with the user via [`ISecretStoreUi`][secret-store-ui], e.g. to ask for its own password. It also receives the names of the secrets it's about to be asked for, which it may use to prefetch them. If any store fails to open, nothing is checked or applied.
+1. Before checking or applying anything, Fabricator opens every store that might be required by the execution, one by one. While opening, a store may interact with the user via [`ISecretStoreUi`][secret-store-ui], e.g. to ask for its own password. It also receives the names of the secrets it's about to be asked for, which it may use to prefetch them (not recommended for the purpose of security, but can be done). If any store fails to open, nothing is checked or applied.
 2. Right before an operation starts, the secrets it requires are fetched from the opened stores, and passed to it via [`ResourceContext.Secrets`][resource-context-secrets]. If a secret fails to be fetched, the operation fails.
-3. Right after the operation finishes, its secrets are disposed. Every secret string is single-use: the operation is encouraged to dispose it as soon as it's not needed anymore, even before the operation finishes.
+3. Right after the operation finishes, its secrets are disposed automatically. Every secret string is single-use: the operation is encouraged to dispose it as soon as it's not needed anymore, even before the operation finishes.
 4. After all the operations have finished, the opened stores are closed.
 
-Stores and secret references are compared by reference, no matter how their `Equals` is defined.
+Stores and secret references are compared by reference.
 
-Note that [`SecureString`][secure-string] provides little actual protection. Fabricator uses it mostly to indicate that the string has to be handled carefully, and to clean it up from the memory as soon as possible.
+Note that [`SecureString`][secure-string] in the API provides little actual protection. Fabricator uses it mostly to indicate that the string has to be handled carefully, and to clean it up from the memory as soon as possible.
 
-[`PlainSecretStore`][plain-secret-store] is the simplest store implementation: it asks the user to enter every required secret when opening. **It is not secure:** the entered secrets are kept in the process memory for the whole Fabricator session. Only use it for simple cases, when you're fine with entering the secrets manually on every run.
+[`PlainSecretStore`][plain-secret-store] is the simplest store implementation: it asks the user to enter every required secret when opening. **It is not secure:** the entered secrets are kept in the process memory for the whole Fabricator session. Only use it for simple cases, when you're fine with entering the secrets manually on every run, and have no security concerns about keeping them in the process memory for longer than strictly needed.
 
 [core]: xref:Fabricator.Core
 [reporter]: xref:Fabricator.Core.IReporter
