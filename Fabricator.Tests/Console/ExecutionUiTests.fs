@@ -291,7 +291,7 @@ let ``Secret input fails without input``(): Task = task {
 let ``Plain UI writes the secret prompt without echoing the secret``(): Task = task {
     use output = new StringWriter()
     let ui = ExecutionUi.PlainUi(output, ExecutionUi.SecretInput.ofReader(new StringReader "hunter2\n"))
-    use! secret = (ui :> ISecretStoreUi).ReadSecret "Password: " |> Async.StartAsTask
+    use! secret = (ui :> ISecretStoreUi).ReadSecret "Password:" |> Async.StartAsTask
     Assert.Equal("hunter2", Materialize secret)
     Assert.Equal("Password: " + Environment.NewLine, output.ToString())
 }
