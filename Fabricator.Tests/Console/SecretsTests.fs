@@ -12,6 +12,7 @@ open System.Threading
 open System.Threading.Tasks
 open Fabricator.Console
 open Fabricator.Core
+open Fabricator.Core.Secrets
 open Fabricator.Tests.FakeResource
 open Fabricator.Tests.FakeSecretStore
 open Xunit
@@ -42,7 +43,7 @@ let private recordSecrets (resource: FakeResource) =
     let received = ConcurrentQueue<string * string * string>()
     let record action (ctx: ResourceContext) = async {
         for KeyValue(secret, value) in ctx.Secrets do
-            received.Enqueue(action, string secret.Name, plain value)
+            received.Enqueue(action, string secret.Name, Materialize value)
     }
     resource.OnCheckWithContext <- record "check"
     resource.OnApplyWithContext <- record "apply"
@@ -164,7 +165,7 @@ let ``Secrets are disposed after the action``(): Task = task {
     let captured = ConcurrentQueue<SecureString>()
     let capture (ctx: ResourceContext) = async {
         let value = ctx.Secrets[secret]
-        Assert.Equal("S:x", plain value)
+        Assert.Equal("S:x", Materialize value)
         captured.Enqueue value
     }
     r.OnCheckWithContext <- capture
@@ -311,8 +312,8 @@ let ``Secret references with equal contents are different keys``(): Task = task 
     let mutable count = 0
     r.OnCheckWithContext <- fun ctx -> async {
         count <- ctx.Secrets.Count
-        Assert.Equal("S:x", plain ctx.Secrets[first])
-        Assert.Equal("S:x", plain ctx.Secrets[second])
+        Assert.Equal("S:x", Materialize ctx.Secrets[first])
+        Assert.Equal("S:x", Materialize ctx.Secrets[second])
     }
 
     let! report, output = runCheck [ r ]

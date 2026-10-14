@@ -18,6 +18,7 @@ SPDX-License-Identifier: MIT
         <Compile Include="Reporter.fs" />
         <Compile Include="ResourceChange.fs" />
         <Compile Include="Resource.fs" />
+        <Compile Include="Secrets.fs" />
         <Compile Include="AssemblyInfo.fs" />
     </ItemGroup>
 

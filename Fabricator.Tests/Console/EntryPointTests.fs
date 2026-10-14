@@ -8,9 +8,8 @@ open System.IO
 open System.Text
 open Fabricator.Console
 open Fabricator.Core
+open Fabricator.Core.Secrets
 open Fabricator.Tests.FakeResource
-open Fabricator.Tests.FakeSecretStore
-
 open Xunit
 
 [<Fact>]
@@ -70,7 +69,7 @@ let ``Apply passes the secrets entered into the plain store``(): unit =
     let secret = { Store = store; Name = SecretName "token"; RequestMode = SecretRequestMode.ApplyOnly }
     let r = FakeResource("R", EventLog(), None, [||], [ secret ])
     let mutable received = None
-    r.OnApplyWithContext <- fun ctx -> async { received <- Some(plain ctx.Secrets[secret]) }
+    r.OnApplyWithContext <- fun ctx -> async { received <- Some(Materialize ctx.Secrets[secret]) }
     use output = new StringWriter()
     let ui = ExecutionUi.PlainUi(output, ExecutionUi.SecretInput.ofReader(new StringReader "my token\n"))
 
