@@ -113,6 +113,8 @@ type SecretRequestMode =
 /// <remarks>
 /// References are compared by reference: every reference object is a separate key of
 /// <see cref="P:Fabricator.Core.ResourceContext.Secrets"/>, even if its contents are equal to some other reference's.
+/// It is implemented this way to forbid even an incorrect implementation of
+/// <see cref="T:Fabricator.Core.ISecretStore"/> from breaking the equality semantics.
 /// </remarks>
 [<ReferenceEquality>]
 type SecretRef =
