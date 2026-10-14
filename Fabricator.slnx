@@ -46,5 +46,6 @@
   <Project Path="Fabricator.Core/Fabricator.Core.fsproj" />
   <Project Path="Fabricator.Example/Fabricator.Example.fsproj" />
   <Project Path="Fabricator.Resources/Fabricator.Resources.fsproj" />
+  <Project Path="Fabricator.Secrets.KeePass/Fabricator.Secrets.KeePass.fsproj" />
   <Project Path="Fabricator.Tests/Fabricator.Tests.fsproj" />
 </Solution>

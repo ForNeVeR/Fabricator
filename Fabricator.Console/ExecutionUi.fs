@@ -597,7 +597,7 @@ type SpectreUi(console: IAnsiConsole, secretInput: SecretInput) =
 
     interface ISecretStoreUi with
         member _.ReadSecret prompt =
-            readSecret (fun text -> console.Write(Text text)) (fun () -> console.WriteLine()) secretInput prompt
+            readSecret (fun text -> console.Write(Text $"{text} ")) (fun () -> console.WriteLine()) secretInput prompt
 
     interface IExecutionUi with
         member _.WriteLine line = writeLines console [| line |]

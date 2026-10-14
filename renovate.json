@@ -5,6 +5,15 @@
     ],
     "automerge": true,
     "automergeType": "branch",
+    "packageRules": [
+        {
+            "description": "Security-sensitive libraries around secret store; require more careful handling.",
+            "matchPackageNames": [
+                "Pidamg.KeePass.Kdbx"
+            ],
+            "automerge": false
+        }
+    ],
     "customManagers": [
         {
             "description": "Update the Generaptor package.",
