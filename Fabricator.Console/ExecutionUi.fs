@@ -250,7 +250,7 @@ let private readSecret
     (input: SecretInput)
     (prompt: string)
     : Async<SecureString> = async {
-    write $"{prompt} "
+    write prompt
     try
         return! SecretInput.read input
     finally
