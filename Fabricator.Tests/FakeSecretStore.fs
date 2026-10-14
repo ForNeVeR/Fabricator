@@ -5,7 +5,6 @@
 module Fabricator.Tests.FakeSecretStore
 
 open System.Collections.Concurrent
-open System.Net
 open System.Security
 open Fabricator.Core
 open Fabricator.Tests.FakeResource
@@ -17,9 +16,6 @@ let secretOf(value: string): SecureString =
         result.AppendChar c
     result.MakeReadOnly()
     result
-
-/// Converts the secure string to a plain string, to check its content.
-let plain(secret: SecureString): string = NetworkCredential("", secret).Password
 
 /// <summary>
 /// A secret store recording its events to the log: <c>open S [names]</c>, <c>opened S</c>, <c>get S name</c>, and

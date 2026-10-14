@@ -11,6 +11,7 @@ open System.Collections.Immutable
 open System.Security
 open System.Threading.Tasks
 open Fabricator.Core
+open Fabricator.Core.Secrets
 open Fabricator.Tests.FakeSecretStore
 open Xunit
 
@@ -45,8 +46,8 @@ let ``Open asks for every secret once in order``(): Task = task {
     Assert.Equal<string list>([ "Enter the secret \"a\": "; "Enter the secret \"b\": " ], ui.Prompts)
     use! a = getSecret scope "a"
     use! b = getSecret scope "b"
-    Assert.Equal("secret 1", plain a)
-    Assert.Equal("secret 2", plain b)
+    Assert.Equal("secret 1", Materialize a)
+    Assert.Equal("secret 2", Materialize b)
 }
 
 [<Fact>]
@@ -59,7 +60,7 @@ let ``Every request returns an independent copy``(): Task = task {
     use! second = getSecret scope "a"
 
     Assert.False(obj.ReferenceEquals(first, second))
-    Assert.Equal("secret 1", plain second)
+    Assert.Equal("secret 1", Materialize second)
 }
 
 [<Fact>]

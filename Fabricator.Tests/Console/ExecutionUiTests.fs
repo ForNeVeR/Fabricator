@@ -10,7 +10,7 @@ open System.Text.RegularExpressions
 open System.Threading.Tasks
 open Fabricator.Console
 open Fabricator.Core
-open Fabricator.Tests
+open Fabricator.Core.Secrets
 open Fabricator.Tests.FakeResource
 open Spectre.Console
 open Xunit
@@ -269,7 +269,7 @@ let private readSecret(input: string) =
 let ``Secret input reads a line``(input: string, expected: string): Task = task {
     use! secret = readSecret input
     Assert.True(secret.IsReadOnly())
-    Assert.Equal(expected, FakeSecretStore.plain secret)
+    Assert.Equal(expected, Materialize secret)
 }
 
 [<Fact>]
@@ -277,8 +277,8 @@ let ``Secret input reads consecutive lines``(): Task = task {
     let input = ExecutionUi.SecretInput.ofReader(new StringReader "first\r\nsecond\r\n")
     use! first = ExecutionUi.SecretInput.read input |> Async.StartAsTask
     use! second = ExecutionUi.SecretInput.read input |> Async.StartAsTask
-    Assert.Equal("first", FakeSecretStore.plain first)
-    Assert.Equal("second", FakeSecretStore.plain second)
+    Assert.Equal("first", Materialize first)
+    Assert.Equal("second", Materialize second)
 }
 
 [<Fact>]
@@ -292,7 +292,7 @@ let ``Plain UI writes the secret prompt without echoing the secret``(): Task = t
     use output = new StringWriter()
     let ui = ExecutionUi.PlainUi(output, ExecutionUi.SecretInput.ofReader(new StringReader "hunter2\n"))
     use! secret = (ui :> ISecretStoreUi).ReadSecret "Password: " |> Async.StartAsTask
-    Assert.Equal("hunter2", FakeSecretStore.plain secret)
+    Assert.Equal("hunter2", Materialize secret)
     Assert.Equal("Password: " + Environment.NewLine, output.ToString())
 }
 
@@ -302,7 +302,7 @@ let ``Spectre UI writes the secret prompt without echoing the secret``(): Task =
     let input = ExecutionUi.SecretInput.ofReader(new StringReader "hunter2\n")
     let ui = ExecutionUi.SpectreUi(createInteractiveConsole output, input)
     use! secret = (ui :> ISecretStoreUi).ReadSecret "Password: " |> Async.StartAsTask
-    Assert.Equal("hunter2", FakeSecretStore.plain secret)
+    Assert.Equal("hunter2", Materialize secret)
     let text = output.ToString()
     Assert.Contains("Password: ", text)
     Assert.DoesNotContain("hunter2", text)
