@@ -90,19 +90,16 @@ let workflows = [
                 run = "dotnet build"
             )
             step(
-                condition = "runner.os == 'Linux'",
-                name = "Install KeePassXC (Linux)",
+                name = "Run unit tests",
+                run = "dotnet test"
+            )
+        ]
+
+        dotNetJob "keepass-test-database" [
+            runsOn "ubuntu-26.04"
+            step(
+                name = "Install KeePassXC",
                 run = "sudo apt-get update && sudo apt-get install --yes keepassxc"
-            )
-            step(
-                condition = "runner.os == 'macOS'",
-                name = "Install KeePassXC (macOS)",
-                run = "brew install --cask keepassxc"
-            )
-            step(
-                condition = "runner.os == 'Windows'",
-                name = "Install KeePassXC (Windows)",
-                run = "choco install keepassxc --yes --no-progress"
             )
             step(
                 name = "Regenerate the KeePass test database",
@@ -110,8 +107,8 @@ let workflows = [
                 run = "./scripts/New-KeePassTestDatabase.ps1"
             )
             step(
-                name = "Run unit tests",
-                run = "dotnet test"
+                name = "Run KeePass tests",
+                run = "dotnet test --filter FullyQualifiedName~KeePassSecretStoreTests"
             )
         ]
 
