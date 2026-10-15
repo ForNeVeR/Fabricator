@@ -72,6 +72,6 @@ let ``Missing entry returns null``(): Task = task {
 
 [<Fact>]
 let ``Wrong master password fails to open``(): Task = task {
-    let! _ = Assert.ThrowsAnyAsync<exn>(fun () -> openStore(PasswordUi "wrong-password") :> Task)
+    let! _ = Assert.ThrowsAsync<InvalidDataException>(fun () -> openStore(PasswordUi "wrong-password") :> Task)
     ()
 }
