@@ -4,21 +4,32 @@
 
 namespace Fabricator.Secrets.KeePass
 
+open System
 open Fabricator.Core
 open Pidamg.KeePass
 open TruePath
 
+/// The scope of an opened <see cref="T:Fabricator.Secrets.KeePass.KeePassSecretStore"/>, owning the opened database.
 type private KeePassScope(database: KdbxDatabase) =
+    let lockObj = obj()
+    let mutable disposed = false
+
     interface ISecretStoreScope with
-        member this.GetSecret(SecretName name) =
-            async.Return (
+        member _.GetSecret(SecretName name) = async {
+            return lock lockObj (fun () ->
+                if disposed then raise <| ObjectDisposedException "KeePassSecretStore"
                 match database.FindEntry name with
                 | null -> null
                 | entry -> Secrets.OfString entry.Password
             )
+        }
 
-        member this.Dispose() =
-            database.Dispose()
+        member _.Dispose() =
+            lock lockObj (fun () ->
+                if not disposed then
+                    disposed <- true
+                    database.Dispose()
+            )
 
 /// <summary>
 /// <para>Secret store based on <a href="https://keepass.info/">KeePass</a> database.</para>

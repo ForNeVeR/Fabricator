@@ -71,6 +71,14 @@ let ``Missing entry returns null``(): Task = task {
 }
 
 [<Fact>]
+let ``GetSecret after dispose fails``(): Task = task {
+    let! scope = openStore(PasswordUi masterPassword)
+    scope.Dispose()
+    let! _ = Assert.ThrowsAsync<ObjectDisposedException>(fun () -> getSecret scope entryTitle :> Task)
+    ()
+}
+
+[<Fact>]
 let ``Wrong master password fails to open``(): Task = task {
     let! _ = Assert.ThrowsAsync<InvalidDataException>(fun () -> openStore(PasswordUi "wrong-password") :> Task)
     ()
