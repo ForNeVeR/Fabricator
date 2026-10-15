@@ -90,6 +90,20 @@ let ``Missing entry returns null``(): Task = task {
 }
 
 [<Fact>]
+let ``Entry in the recycle bin is not found``(): Task = task {
+    use! scope = openStoreAt v4DatabasePath (PasswordUi masterPassword)
+    let! secret = getSecret scope "Recycled Entry"
+    Assert.Null secret
+}
+
+[<Fact>]
+let ``Duplicate titles fail``(): Task = task {
+    use! scope = openStore(PasswordUi masterPassword)
+    let! ex = Assert.ThrowsAsync<InvalidOperationException>(fun () -> getSecret scope "Duplicate Entry" :> Task)
+    Assert.Contains("Found 2 entries titled \"Duplicate Entry\"", ex.Message)
+}
+
+[<Fact>]
 let ``GetSecret after dispose fails``(): Task = task {
     let! scope = openStore(PasswordUi masterPassword)
     scope.Dispose()
