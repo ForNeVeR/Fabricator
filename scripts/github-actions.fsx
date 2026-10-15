@@ -257,7 +257,7 @@ let workflows = [
                 step(
                     condition = whenPushingTag,
                     name = $"Push {packageName} to NuGet",
-                    run = $"dotnet nuget push \"{nuPkg}\" --source https://api.nuget.org/v3/index.json --api-key ${{{{ steps.nuget-login.outputs.NUGET_API_KEY }}}}"
+                    run = $"dotnet nuget push \"{nuPkg}\" --source https://api.nuget.org/v3/index.json --api-key ${{{{ steps.nuget-login.outputs.NUGET_API_KEY }}}} --skip-duplicate"
                 )
             )
         ]

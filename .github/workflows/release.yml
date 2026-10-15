@@ -82,13 +82,13 @@ jobs:
         name: Fabricator v${{ steps.version.outputs.version }}
     - if: startsWith(github.ref, 'refs/tags/v')
       name: Push FVNever.Fabricator.Console to NuGet
-      run: dotnet nuget push "./Fabricator.Console/bin/Release/FVNever.Fabricator.Console.${{ steps.version.outputs.version }}.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+      run: dotnet nuget push "./Fabricator.Console/bin/Release/FVNever.Fabricator.Console.${{ steps.version.outputs.version }}.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --skip-duplicate
     - if: startsWith(github.ref, 'refs/tags/v')
       name: Push FVNever.Fabricator.Core to NuGet
-      run: dotnet nuget push "./Fabricator.Core/bin/Release/FVNever.Fabricator.Core.${{ steps.version.outputs.version }}.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+      run: dotnet nuget push "./Fabricator.Core/bin/Release/FVNever.Fabricator.Core.${{ steps.version.outputs.version }}.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --skip-duplicate
     - if: startsWith(github.ref, 'refs/tags/v')
       name: Push FVNever.Fabricator.Secrets.KeePass to NuGet
-      run: dotnet nuget push "./Fabricator.Secrets.KeePass/bin/Release/FVNever.Fabricator.Secrets.KeePass.${{ steps.version.outputs.version }}.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+      run: dotnet nuget push "./Fabricator.Secrets.KeePass/bin/Release/FVNever.Fabricator.Secrets.KeePass.${{ steps.version.outputs.version }}.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --skip-duplicate
     - if: startsWith(github.ref, 'refs/tags/v')
       name: Push FVNever.Fabricator.Resources to NuGet
-      run: dotnet nuget push "./Fabricator.Resources/bin/Release/FVNever.Fabricator.Resources.${{ steps.version.outputs.version }}.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+      run: dotnet nuget push "./Fabricator.Resources/bin/Release/FVNever.Fabricator.Resources.${{ steps.version.outputs.version }}.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --skip-duplicate
