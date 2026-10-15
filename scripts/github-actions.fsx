@@ -206,6 +206,7 @@ let workflows = [
             let projectNames = [
                 "Fabricator.Console"
                 "Fabricator.Core"
+                "Fabricator.Secrets.KeePass"
                 "Fabricator.Resources"
             ]
 
@@ -230,8 +231,19 @@ let workflows = [
                     "path", $"./release-notes.md\n{filesToUploadString}"
                 ]
             )
+
+            let whenPushingTag = "startsWith(github.ref, 'refs/tags/v')"
             step(
-                condition = "startsWith(github.ref, 'refs/tags/v')",
+                condition = whenPushingTag,
+                id = "nuget-login",
+                name = "Log in to NuGet",
+                usesSpec = Auto "NuGet/login",
+                options = Map.ofList [
+                    "user", "${{ secrets.NUGET_USER }}"
+                ]
+            )
+            step(
+                condition = whenPushingTag,
                 name = "Create a release",
                 usesSpec = Auto "softprops/action-gh-release",
                 options = Map.ofList [
@@ -245,9 +257,9 @@ let workflows = [
                 let fileName = Path.GetFileNameWithoutExtension nuPkg
                 let packageName = fileName.Substring(0, fileName.IndexOf(".$"))
                 step(
-                    condition = "startsWith(github.ref, 'refs/tags/v')",
+                    condition = whenPushingTag,
                     name = $"Push {packageName} to NuGet",
-                    run = $"dotnet nuget push \"{nuPkg}\" --source https://api.nuget.org/v3/index.json --api-key ${{{{ secrets.NUGET_TOKEN }}}}"
+                    run = $"dotnet nuget push \"{nuPkg}\" --source https://api.nuget.org/v3/index.json --api-key ${{{{ steps.nuget-login.outputs.NUGET_API_KEY }}}}"
                 )
             )
         ]

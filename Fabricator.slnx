@@ -6,6 +6,7 @@
   <Folder Name="/.github/" />
   <Folder Name="/.github/workflows/">
     <File Path=".github/workflows/main.yml" />
+    <File Path=".github/workflows/release.yml" />
     <File Path=".github\workflows\docs.yml" />
   </Folder>
   <Folder Name="/docs/">
