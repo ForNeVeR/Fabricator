@@ -70,6 +70,18 @@ jobs:
         path: ${{ env.NUGET_PACKAGES }}
     - name: Build
       run: dotnet build
+    - if: runner.os == 'Linux'
+      name: Install KeePassXC (Linux)
+      run: sudo apt-get update && sudo apt-get install --yes keepassxc
+    - if: runner.os == 'macOS'
+      name: Install KeePassXC (macOS)
+      run: brew install --cask keepassxc
+    - if: runner.os == 'Windows'
+      name: Install KeePassXC (Windows)
+      run: choco install keepassxc --yes --no-progress
+    - name: Regenerate the KeePass test database
+      shell: pwsh
+      run: ./scripts/New-KeePassTestDatabase.ps1
     - name: Run unit tests
       run: dotnet test
   check-docs:

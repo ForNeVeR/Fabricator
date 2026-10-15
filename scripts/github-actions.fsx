@@ -90,6 +90,26 @@ let workflows = [
                 run = "dotnet build"
             )
             step(
+                condition = "runner.os == 'Linux'",
+                name = "Install KeePassXC (Linux)",
+                run = "sudo apt-get update && sudo apt-get install --yes keepassxc"
+            )
+            step(
+                condition = "runner.os == 'macOS'",
+                name = "Install KeePassXC (macOS)",
+                run = "brew install --cask keepassxc"
+            )
+            step(
+                condition = "runner.os == 'Windows'",
+                name = "Install KeePassXC (Windows)",
+                run = "choco install keepassxc --yes --no-progress"
+            )
+            step(
+                name = "Regenerate the KeePass test database",
+                shell = "pwsh",
+                run = "./scripts/New-KeePassTestDatabase.ps1"
+            )
+            step(
                 name = "Run unit tests",
                 run = "dotnet test"
             )
