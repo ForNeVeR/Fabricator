@@ -45,6 +45,16 @@ jobs:
       uses: actions/checkout@v7
     - name: REUSE license check
       uses: fsfe/reuse-action@v6
+  todos:
+    runs-on: ubuntu-26.04
+    steps:
+    - name: Check out the sources
+      uses: actions/checkout@v7
+    - name: Check TODOs
+      uses: ForNeVeR/Todosaurus/action@v1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        strict: true
   check:
     strategy:
       matrix:

@@ -76,6 +76,22 @@ let workflows = [
             )
         ]
 
+        job "todos" [
+            runsOn "ubuntu-26.04"
+            step(
+                name = "Check out the sources",
+                usesSpec = Auto "actions/checkout"
+            )
+            step(
+                name = "Check TODOs",
+                uses = "ForNeVeR/Todosaurus/action@v1",
+                options = Map.ofList [
+                    "github-token", "${{ secrets.GITHUB_TOKEN }}"
+                    "strict", "true"
+                ]
+            )
+        ]
+
         dotNetJob "check" [
             runsOn "${{ matrix.environment }}"
             strategy(matrix = [
