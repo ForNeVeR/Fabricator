@@ -43,7 +43,7 @@ let ``Open asks for every secret once in order``(): Task = task {
     let ui = ScriptedUi()
     use! scope = openStore ui [ "a"; "b"; "a" ]
 
-    Assert.Equal<string list>([ "Enter the secret \"a\": "; "Enter the secret \"b\": " ], ui.Prompts)
+    Assert.Equal<string list>([ "Enter the secret \"a\":"; "Enter the secret \"b\":" ], ui.Prompts)
     use! a = getSecret scope "a"
     use! b = getSecret scope "b"
     Assert.Equal("secret 1", Materialize a)

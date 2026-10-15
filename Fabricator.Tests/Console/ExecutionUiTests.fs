@@ -301,7 +301,7 @@ let ``Spectre UI writes the secret prompt without echoing the secret``(): Task =
     use output = new StringWriter()
     let input = ExecutionUi.SecretInput.ofReader(new StringReader "hunter2\n")
     let ui = ExecutionUi.SpectreUi(createInteractiveConsole output, input)
-    use! secret = (ui :> ISecretStoreUi).ReadSecret "Password: " |> Async.StartAsTask
+    use! secret = (ui :> ISecretStoreUi).ReadSecret "Password:" |> Async.StartAsTask
     Assert.Equal("hunter2", Materialize secret)
     let text = output.ToString()
     Assert.Contains("Password: ", text)
@@ -312,6 +312,6 @@ let ``Spectre UI writes the secret prompt without echoing the secret``(): Task =
 let ``UI without secret input fails to read a secret``(): Task = task {
     use output = new StringWriter()
     let ui = ExecutionUi.PlainUi output :> ISecretStoreUi
-    let! _ = Assert.ThrowsAsync<InvalidOperationException>(fun () -> ui.ReadSecret "Password: " |> Async.StartAsTask :> Task)
+    let! _ = Assert.ThrowsAsync<InvalidOperationException>(fun () -> ui.ReadSecret "Password:" |> Async.StartAsTask :> Task)
     ()
 }

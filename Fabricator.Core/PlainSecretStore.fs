@@ -69,7 +69,7 @@ type PlainSecretStore() =
             try
                 for name in context.SecretNames do
                     if not(scope.Contains name) then
-                        let! secret = ui.ReadSecret $"Enter the secret \"{name}\": "
+                        let! secret = ui.ReadSecret $"Enter the secret \"{name}\":"
                         scope.Add(name, secret)
                 opened <- true
             finally
