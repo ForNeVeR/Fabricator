@@ -185,6 +185,7 @@ let workflows = [
         onWorkflowDispatch
         dotNetJob "nuget" [
             jobPermission(PermissionKind.Contents, AccessKind.Write)
+            jobPermission(PermissionKind.IdToken, AccessKind.Write)
             runsOn "ubuntu-26.04"
             step(
                 id = "version",
