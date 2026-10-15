@@ -12,7 +12,6 @@ open System.Threading.Tasks
 open Fabricator.Core
 open Fabricator.Core.Secrets
 open Fabricator.Secrets.KeePass
-open Fabricator.Tests.FakeSecretStore
 open TruePath
 open Xunit
 
@@ -29,7 +28,7 @@ type private PasswordUi(password: string) =
     interface ISecretStoreUi with
         member _.ReadSecret prompt = async {
             prompts.Enqueue prompt
-            return secretOf password
+            return OfString password
         }
 
 let private openStore(ui: ISecretStoreUi) =

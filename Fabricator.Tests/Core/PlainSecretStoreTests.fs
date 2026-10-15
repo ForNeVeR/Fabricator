@@ -12,7 +12,6 @@ open System.Security
 open System.Threading.Tasks
 open Fabricator.Core
 open Fabricator.Core.Secrets
-open Fabricator.Tests.FakeSecretStore
 open Xunit
 
 /// A UI answering every prompt with its own number, e.g. "secret 1", and recording the prompts.
@@ -24,7 +23,7 @@ type private ScriptedUi(?failOn: int) =
         member this.ReadSecret prompt = async {
             prompts.Enqueue prompt
             if Some prompts.Count = failOn then failwith "Input failure."
-            let secret = secretOf $"secret {prompts.Count}"
+            let secret = OfString $"secret {prompts.Count}"
             this.Returned.Enqueue secret
             return secret
         }

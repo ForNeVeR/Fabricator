@@ -9,14 +9,6 @@ open System.Security
 open Fabricator.Core
 open Fabricator.Tests.FakeResource
 
-/// Creates a read-only secure string with the passed content.
-let secretOf(value: string): SecureString =
-    let result = new SecureString()
-    for c in value do
-        result.AppendChar c
-    result.MakeReadOnly()
-    result
-
 /// <summary>
 /// A secret store recording its events to the log: <c>open S [names]</c>, <c>opened S</c>, <c>get S name</c>, and
 /// <c>dispose S</c>. Returns the secret named <c>name</c> as the string <c>S:name</c>.
@@ -49,7 +41,7 @@ type FakeSecretStore(name: string, log: EventLog) =
                             match this.GetError with
                             | Some e -> return raise e
                             | None ->
-                                let secret = secretOf $"{name}:{secretName}"
+                                let secret = Secrets.OfString $"{name}:{secretName}"
                                 this.Returned.Enqueue secret
                                 return secret
                         }
