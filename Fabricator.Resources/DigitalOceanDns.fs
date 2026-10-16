@@ -192,17 +192,12 @@ module internal DigitalOceanDnsZone =
     /// The <paramref name="records"/> are invalid.
     /// </exception>
     let validate (domain: string) (records: DigitalOceanDnsRecord seq): unit =
-        let invalid =
-            records
-            |> Seq.choose (fun record ->
-                match problems domain record with
-                | [||] -> None
-                | problems -> Some(record, problems)
-            )
+        let checkedRecords = records |> Seq.map (fun record -> record, problems domain record) |> Seq.toArray
+        let invalid = checkedRecords |> Seq.filter (fun (_, problems) -> not (Array.isEmpty problems))
         let duplicates =
-            records
-            |> Seq.filter (fun record -> problems domain record |> Array.isEmpty)
-            |> Seq.toArray
+            checkedRecords
+            |> Array.filter (fun (_, problems) -> Array.isEmpty problems)
+            |> Array.map fst
             |> Array.groupBy key
             |> Seq.filter (fun (_, group) -> group.Length > 1)
             |> Seq.map (fun (_, group) -> Array.head group, [| $"declared {group.Length} times" |])
