@@ -32,7 +32,7 @@ let private assertStates (expected: (string * ReportItemState) list) (report: Re
     Assert.Equal<(string * ReportItemState) list>(expected, report.Items |> List.map (fun i -> i.ResourceName, i.State))
 
 let private assertBefore (first: string) (second: string) (log: EventLog) =
-    Assert.True(log.IndexOf first < log.IndexOf second, $"\"{first}\" should happen before \"{second}\": {log.Events}")
+    Assert.True(log.IndexOf first < log.IndexOf second, $"\"{first}\" should happen before \"{second}\": {log}")
 
 /// Makes all the resources wait in the passed hook until all of them have entered it; this only completes if they
 /// run concurrently.

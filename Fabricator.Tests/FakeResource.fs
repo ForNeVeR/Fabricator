@@ -15,6 +15,8 @@ type EventLog() =
     member _.Add(event: string) = events.Enqueue event
     member _.Events: string seq = events
     member this.IndexOf(event: string): int = Seq.findIndex ((=) event) this.Events
+    /// Presents the events as an F# list, e.g. in assertion messages.
+    override _.ToString() = sprintf "%A" (List.ofSeq events)
 
 /// A resource recording its checks and applications to the log.
 type FakeResource(

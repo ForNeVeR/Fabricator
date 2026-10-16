@@ -36,7 +36,7 @@ let private eventsStartingWith (prefix: string) (log: EventLog) =
     log.Events |> Seq.filter _.StartsWith(prefix)
 
 let private assertBefore (first: string) (second: string) (log: EventLog) =
-    Assert.True(log.IndexOf first < log.IndexOf second, $"\"{first}\" should happen before \"{second}\": {log.Events}")
+    Assert.True(log.IndexOf first < log.IndexOf second, $"\"{first}\" should happen before \"{second}\": {log}")
 
 /// Records the secrets passed to the resource's actions, as (action, name, value) entries.
 let private recordSecrets (resource: FakeResource) =
