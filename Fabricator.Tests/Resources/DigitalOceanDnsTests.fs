@@ -50,13 +50,14 @@ type private FakeDigitalOceanApi(log: EventLog) =
 
     /// <summary>
     /// The data as DigitalOcean is believed to store it: host names without the trailing dot, and <c>@</c> for the
-    /// domain itself.
+    /// domain itself; CAA values without the trailing dot.
     /// </summary>
     static member private StoredData(recordType: string, data: string): string =
         match recordType with
         | "CNAME" | "MX" | "NS" | "SRV" ->
             let hostName = if data.EndsWith "." then data.Substring(0, data.Length - 1) else data
             if hostName = domain then "@" else hostName
+        | "CAA" when data.EndsWith "." -> data.Substring(0, data.Length - 1)
         | _ -> data
 
     static member private ToJson(id: int64, record: DigitalOceanDnsRecord): JsonNode =
@@ -272,6 +273,20 @@ let ``Applied host name of the domain itself requires no further changes``(): Ta
     Assert.Equal(NoChanges, change)
 }
 
+[<Fact>]
+let ``CAA domain names and tags are normalized``(): Task = task {
+    let log = EventLog()
+    let api = new FakeDigitalOceanApi(log)
+    let resource = create api log [ Record("CAA", "@", "letsencrypt.org.", flags = 0, tag = "Issue") ]
+    let! _ = apply log resource
+    Assert.Equal<DigitalOceanDnsRecord list>(
+        [ Record("CAA", "@", "letsencrypt.org", flags = 0, tag = "issue") ],
+        api.Records
+    )
+    let! change = check log resource
+    Assert.Equal(NoChanges, change)
+}
+
 let private assertInvalid (records: DigitalOceanDnsRecord list) (expectedProblems: string list) =
     let log = EventLog()
     let api = new FakeDigitalOceanApi(log)
@@ -314,6 +329,10 @@ let ``Record TTL should be at least 30 seconds``(): unit =
 let ``Record fields should match the type``(): unit =
     assertInvalid [ Record("MX", "@", "mail.example.com.") ] [ "MX records require priority" ]
     assertInvalid [ Record("TXT", "@", "my-text", priority = 10) ] [ "priority is not applicable to TXT records" ]
+
+[<Fact>]
+let ``CAA tag should be known``(): unit =
+    assertInvalid [ Record("CAA", "@", "letsencrypt.org.", flags = 0, tag = "foo") ] [ "unsupported CAA tag \"foo\"" ]
 
 [<Fact>]
 let ``Duplicate records cannot be declared``(): unit =

@@ -54,6 +54,11 @@ module internal DigitalOceanDnsZone =
     /// The types whose data is case-sensitive.
     let private CaseSensitiveTypes = set [ "CAA"; "TXT" ]
 
+    let private CaaTags = set [ "issue"; "issuewild"; "iodef" ]
+
+    /// The CAA tags whose value is a domain name.
+    let private CaaDomainTags = set [ "issue"; "issuewild" ]
+
     /// The optional fields required by the record type. Other optional fields are not applicable to it.
     let RequiredFields(recordType: string): Set<string> =
         match recordType with
@@ -70,19 +75,21 @@ module internal DigitalOceanDnsZone =
         domain.Trim().TrimEnd('.').ToLowerInvariant()
 
     /// <summary>
-    /// Brings the record to the form sent to DigitalOcean: upper-case type, lower-case name, and trimmed data.
+    /// Brings the record to the form sent to DigitalOcean: upper-case type, lower-case name and tag, and trimmed data.
     /// </summary>
     let clean(record: DigitalOceanDnsRecord): DigitalOceanDnsRecord =
         { record with
             Type = record.Type.Trim().ToUpperInvariant()
             Name = record.Name.Trim().ToLowerInvariant()
-            Data = record.Data.Trim() }
+            Data = record.Data.Trim()
+            Tag = record.Tag |> Option.map _.Trim().ToLowerInvariant() }
 
     /// <summary>
     /// Brings the record of the <paramref name="domain"/> to the form in which equal records are equal: the
     /// <see cref="clean"/> form, with the data in lower case (except for the case-sensitive fields), and the host names
     /// without the trailing dot, or <c>@</c> if they denote the domain itself. DigitalOcean expects the fully qualified
-    /// host names to end with a dot, but returns them without it, and returns the domain itself as <c>@</c>.
+    /// host names to end with a dot, but returns them without it, and returns the domain itself as <c>@</c>. The same
+    /// goes for the domain names in the CAA <c>issue</c> and <c>issuewild</c> records.
     /// </summary>
     /// <param name="domain">The domain name.</param>
     /// <param name="record">The record to normalize.</param>
@@ -95,6 +102,8 @@ module internal DigitalOceanDnsZone =
             if HostNameTypes.Contains record.Type then
                 let hostName = if data.EndsWith "." then data.Substring(0, data.Length - 1) else data
                 if hostName = domain then "@" else hostName
+            elif record.Type = "CAA" && record.Tag |> Option.exists CaaDomainTags.Contains && data.EndsWith "." then
+                data.Substring(0, data.Length - 1)
             else data
         { record with Data = data }
 
@@ -176,6 +185,10 @@ module internal DigitalOceanDnsZone =
                     | true, false -> $"{recordType} records require {field}"
                     | false, true -> $"{field} is not applicable to {recordType} records"
                     | _ -> ()
+                match record.Tag with
+                | Some tag when recordType = "CAA" && not (CaaTags.Contains tag) ->
+                    $"unsupported CAA tag \"{original.Tag |> Option.defaultValue tag}\""
+                | _ -> ()
 
             if name = "" then "the name is empty"
             elif name.EndsWith "." || name = domain || name.EndsWith("." + domain) then
@@ -508,7 +521,7 @@ type DigitalOceanDns =
     /// Throws an <see cref="T:System.ArgumentException"/> listing all the invalid records if any of the
     /// <paramref name="records"/> is the SOA or NS record of the domain itself, has an unsupported type, a name that is
     /// not relative to the domain, empty data, a TTL less than 30 seconds, misses a field required by its type or has a
-    /// field not applicable to it, or is declared several times.
+    /// field not applicable to it, has an unsupported CAA tag, or is declared several times.
     /// </para>
     /// </remarks>
     static member Domain(
