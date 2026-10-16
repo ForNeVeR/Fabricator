@@ -48,6 +48,17 @@ type private FakeDigitalOceanApi(log: EventLog) =
         for i in 1..3 do
             this.Add(DigitalOceanDns.Record("NS", "@", $"ns{i}.digitalocean.com"))
 
+    /// <summary>
+    /// The data as DigitalOcean is believed to store it: host names without the trailing dot, and <c>@</c> for the
+    /// domain itself.
+    /// </summary>
+    static member private StoredData(recordType: string, data: string): string =
+        match recordType with
+        | "CNAME" | "MX" | "NS" | "SRV" ->
+            let hostName = if data.EndsWith "." then data.Substring(0, data.Length - 1) else data
+            if hostName = domain then "@" else hostName
+        | _ -> data
+
     static member private ToJson(id: int64, record: DigitalOceanDnsRecord): JsonNode =
         let nullable (value: JsonNode option): JsonNode | null = match value with Some v -> v | None -> null
         let number (value: int option) = value |> Option.map (fun v -> JsonValue.Create v :> JsonNode) |> nullable
@@ -98,11 +109,11 @@ type private FakeDigitalOceanApi(log: EventLog) =
             let! content = (nonNull request.Content).ReadAsStringAsync()
             let json = nonNull (JsonNode.Parse content)
             let field (name: string) = json[name] |> Option.ofObj
+            let recordType = (nonNull json["type"]).GetValue<string>()
             let record = {
-                Type = (nonNull json["type"]).GetValue<string>()
+                Type = recordType
                 Name = (nonNull json["name"]).GetValue<string>()
-                // The real API doesn't return the trailing dot of the host names.
-                Data = (nonNull json["data"]).GetValue<string>().TrimEnd('.')
+                Data = FakeDigitalOceanApi.StoredData(recordType, (nonNull json["data"]).GetValue<string>())
                 Ttl = (nonNull json["ttl"]).GetValue<int>()
                 Priority = field "priority" |> Option.map _.GetValue<int>()
                 Port = field "port" |> Option.map _.GetValue<int>()
@@ -240,6 +251,27 @@ let ``SOA and NS records of the domain itself are ignored``(): Task = task {
     ], api.Records)
 }
 
+[<Fact>]
+let ``Host name of the domain itself matches the short form``(): Task = task {
+    let log = EventLog()
+    let api = new FakeDigitalOceanApi(log)
+    api.Add(Record("MX", "@", "@", priority = 10))
+    let resource = create api log [ Record("MX", "@", "Example.com.", priority = 10) ]
+    let! change = check log resource
+    Assert.Equal(NoChanges, change)
+}
+
+[<Fact>]
+let ``Applied host name of the domain itself requires no further changes``(): Task = task {
+    let log = EventLog()
+    let api = new FakeDigitalOceanApi(log)
+    let resource = create api log [ Record("CNAME", "www", "example.com.") ]
+    let! _ = apply log resource
+    Assert.Equal<DigitalOceanDnsRecord list>([ Record("CNAME", "www", "@") ], api.Records)
+    let! change = check log resource
+    Assert.Equal(NoChanges, change)
+}
+
 let private assertInvalid (records: DigitalOceanDnsRecord list) (expectedProblems: string list) =
     let log = EventLog()
     let api = new FakeDigitalOceanApi(log)
@@ -357,19 +389,21 @@ let ``Changed TTL recreates the record``(): Task = task {
 [<InlineData("CNAME", "blog", "@", "blog 1800 IN CNAME @")>]
 [<InlineData("CNAME", "blog", "Example.org.", "blog 1800 IN CNAME example.org.")>]
 let ``Records are presented as zone lines``(recordType: string, name: string, data: string, expected: string): unit =
-    Assert.Equal(expected, DigitalOceanDnsZone.key(Record(recordType, name, data)))
+    Assert.Equal(expected, DigitalOceanDnsZone.key domain (Record(recordType, name, data)))
 
 [<Fact>]
 let ``Records with extra fields are presented as zone lines``(): unit =
     Assert.Equal(
         "@ 3600 IN MX 10 mail.example.com.",
-        DigitalOceanDnsZone.key(Record("MX", "@", "mail.example.com", ttl = 3600, priority = 10))
+        DigitalOceanDnsZone.key domain (Record("MX", "@", "mail.example.com", ttl = 3600, priority = 10))
     )
     Assert.Equal(
         "_sip._tcp 1800 IN SRV 10 5 5060 sip.example.com.",
-        DigitalOceanDnsZone.key(Record("SRV", "_sip._tcp", "sip.example.com.", priority = 10, weight = 5, port = 5060))
+        DigitalOceanDnsZone.key domain (
+            Record("SRV", "_sip._tcp", "sip.example.com.", priority = 10, weight = 5, port = 5060)
+        )
     )
     Assert.Equal(
         "@ 1800 IN CAA 0 issue \"letsencrypt.org\"",
-        DigitalOceanDnsZone.key(Record("CAA", "@", "letsencrypt.org", flags = 0, tag = "issue"))
+        DigitalOceanDnsZone.key domain (Record("CAA", "@", "letsencrypt.org", flags = 0, tag = "issue"))
     )

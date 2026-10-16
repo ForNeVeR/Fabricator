@@ -79,19 +79,22 @@ module internal DigitalOceanDnsZone =
             Data = record.Data.Trim() }
 
     /// <summary>
-    /// Brings the record to the form in which equal records are equal: the <see cref="clean"/> form, with the data
-    /// in lower case (except for the case-sensitive fields) and without the trailing dot of the host names.
-    /// DigitalOcean expects the fully qualified host names to end with a dot, but doesn't return it.
+    /// Brings the record of the <paramref name="domain"/> to the form in which equal records are equal: the
+    /// <see cref="clean"/> form, with the data in lower case (except for the case-sensitive fields), and the host names
+    /// without the trailing dot, or <c>@</c> if they denote the domain itself. DigitalOcean expects the fully qualified
+    /// host names to end with a dot, but returns them without it, and returns the domain itself as <c>@</c>.
     /// </summary>
     /// <param name="domain">The domain name.</param>
     /// <param name="record">The record to normalize.</param>
     /// <returns>The normalized record.</returns>
-    let normalize(record: DigitalOceanDnsRecord): DigitalOceanDnsRecord =
+    let normalize (domain: string) (record: DigitalOceanDnsRecord): DigitalOceanDnsRecord =
         let record = clean record
         let data = record.Data
         let data = if CaseSensitiveTypes.Contains record.Type then data else data.ToLowerInvariant()
         let data =
-            if HostNameTypes.Contains record.Type && data.EndsWith "." then data.Substring(0, data.Length - 1)
+            if HostNameTypes.Contains record.Type then
+                let hostName = if data.EndsWith "." then data.Substring(0, data.Length - 1) else data
+                if hostName = domain then "@" else hostName
             else data
         { record with Data = data }
 
@@ -121,22 +124,24 @@ module internal DigitalOceanDnsZone =
             | _ -> [ record.Data ]
         $"""{record.Name} {record.Ttl} IN {record.Type} {String.Join(" ", data)}"""
 
-    /// The key identifying equal records.
-    let key(record: DigitalOceanDnsRecord): string = line(normalize record)
+    /// The key identifying equal records of the domain.
+    let key (domain: string) (record: DigitalOceanDnsRecord): string = line(normalize domain record)
 
-    /// Presents the records as a zone text with a header, sorted for a stable diff.
-    let text(records: DigitalOceanDnsRecord seq): string =
-        let lines = records |> Seq.map key |> Seq.sort
+    /// Presents the records of the domain as a zone text with a header, sorted for a stable diff.
+    let text (domain: string) (records: DigitalOceanDnsRecord seq): string =
+        let lines = records |> Seq.map (key domain) |> Seq.sort
         Seq.append [ Header ] lines |> Seq.map (fun l -> l + "\n") |> String.concat ""
 
     /// <summary>
     /// Plans the changes bringing the <paramref name="existing"/> records to the <paramref name="desired"/> ones.
     /// </summary>
+    /// <param name="domain">The domain name.</param>
     /// <param name="existing">A collection of the already existing records.</param>
     /// <param name="desired">A collection of the desired (target) records.</param>
     /// <returns>The existing records to delete, and the desired records to create, in their original order.</returns>
-    let plan (existing: ('id * DigitalOceanDnsRecord) seq) (desired: DigitalOceanDnsRecord seq)
+    let plan (domain: string) (existing: ('id * DigitalOceanDnsRecord) seq) (desired: DigitalOceanDnsRecord seq)
             : ('id * DigitalOceanDnsRecord)[] * DigitalOceanDnsRecord[] =
+        let key = key domain
         let desiredKeys = desired |> Seq.map key |> Set.ofSeq
         let toDelete, kept =
             existing
@@ -198,7 +203,7 @@ module internal DigitalOceanDnsZone =
             checkedRecords
             |> Array.filter (fun (_, problems) -> Array.isEmpty problems)
             |> Array.map fst
-            |> Array.groupBy key
+            |> Array.groupBy (key domain)
             |> Seq.filter (fun (_, group) -> group.Length > 1)
             |> Seq.map (fun (_, group) -> Array.head group, [| $"declared {group.Length} times" |])
         match Seq.concat [ invalid; duplicates ] |> Seq.toArray with
@@ -421,8 +426,8 @@ type DigitalOceanDns =
         let change(existing: (int64 * DigitalOceanDnsRecord) seq) =
             Diffs.textChange
                 $"DigitalOcean DNS zone \"{domain}\""
-                (Some(DigitalOceanDnsZone.text(Seq.map snd existing)))
-                (DigitalOceanDnsZone.text desired)
+                (Some(DigitalOceanDnsZone.text domain (Seq.map snd existing)))
+                (DigitalOceanDnsZone.text domain desired)
 
         {
             PresentableName = $"DigitalOcean DNS records of \"{domain}\""
@@ -439,7 +444,7 @@ type DigitalOceanDns =
             Apply = fun ctx -> async {
                 use client = openClient ctx
                 let! existing = listManagedRecords client ctx
-                let toDelete, toCreate = DigitalOceanDnsZone.plan existing desired
+                let toDelete, toCreate = DigitalOceanDnsZone.plan domain existing desired
 
                 // Deleting first avoids conflicts of the new records with the old ones, e.g. of CNAME records.
                 do! ctx.Reporter.WithProgress(
@@ -448,7 +453,7 @@ type DigitalOceanDns =
                     ProgressUnit.Items,
                     fun reporter -> async {
                         for index, (id, record) in Seq.indexed toDelete do
-                            ctx.Reporter.Log $"Deleting record: {DigitalOceanDnsZone.key record}"
+                            ctx.Reporter.Log $"Deleting record: {DigitalOceanDnsZone.key domain record}"
                             do! DigitalOceanDnsApi.deleteRecord client domain id
                             reporter.Report(int64(index + 1))
                     }
@@ -460,7 +465,7 @@ type DigitalOceanDns =
                     ProgressUnit.Items,
                     fun reporter -> async {
                         for index, record in Seq.indexed toCreate do
-                            ctx.Reporter.Log $"Creating record: {DigitalOceanDnsZone.key record}"
+                            ctx.Reporter.Log $"Creating record: {DigitalOceanDnsZone.key domain record}"
                             do! DigitalOceanDnsApi.createRecord client domain record
                             reporter.Report(int64(index + 1))
                     }
