@@ -160,25 +160,60 @@ module internal DigitalOceanDnsZone =
         let lines = records |> Seq.map (key domain) |> Seq.sort
         Seq.append [ Header ] lines |> Seq.map (fun l -> l + "\n") |> String.concat ""
 
+    /// The changes bringing the existing records of a domain to the desired ones, in their original order.
+    type Changes<'id> =
+        {
+            /// The existing records to update in place, with their new contents.
+            ToUpdate: ('id * DigitalOceanDnsRecord * DigitalOceanDnsRecord)[]
+            /// The existing records to delete.
+            ToDelete: ('id * DigitalOceanDnsRecord)[]
+            /// The desired records to create.
+            ToCreate: DigitalOceanDnsRecord[]
+        }
+
     /// <summary>
     /// Plans the changes bringing the <paramref name="existing"/> records to the <paramref name="desired"/> ones.
     /// </summary>
     /// <param name="domain">The domain name.</param>
     /// <param name="existing">A collection of the already existing records.</param>
     /// <param name="desired">A collection of the desired (target) records.</param>
-    /// <returns>The existing records to delete, and the desired records to create, in their original order.</returns>
+    /// <remarks>
+    /// The existing records equal to the desired ones are kept. Of the rest, the existing and the desired records of
+    /// the same type and name are paired in their original order, and the existing records are updated with the
+    /// desired ones. The unpaired existing records are deleted, and the unpaired desired records are created.
+    /// </remarks>
     let plan (domain: string) (existing: ('id * DigitalOceanDnsRecord) seq) (desired: DigitalOceanDnsRecord seq)
-            : ('id * DigitalOceanDnsRecord)[] * DigitalOceanDnsRecord[] =
+            : Changes<'id> =
         let key = key domain
         let desiredKeys = desired |> Seq.map key |> Set.ofSeq
-        let toDelete, kept =
+        let unmatched, kept =
             existing
-            |> Seq.fold (fun (toDelete, kept) (id, record) ->
+            |> Seq.fold (fun (unmatched, kept) (id, record) ->
                 let k = key record
-                if desiredKeys.Contains k && not (Set.contains k kept) then toDelete, Set.add k kept
-                else (id, record) :: toDelete, kept
+                if desiredKeys.Contains k && not (Set.contains k kept) then unmatched, Set.add k kept
+                else (id, record) :: unmatched, kept
             ) ([], Set.empty)
-        Seq.rev toDelete |> Seq.toArray, desired |> Seq.filter (fun r -> not (kept.Contains(key r))) |> Seq.toArray
+        let missing = desired |> Seq.filter (fun r -> not (kept.Contains(key r))) |> Seq.indexed |> Seq.toArray
+
+        let group record =
+            let record = normalize domain record
+            record.Type, record.Name
+        let available = missing |> Seq.groupBy (snd >> group) |> Map.ofSeq |> Map.map (fun _ -> List.ofSeq)
+        let toUpdate, toDelete, available =
+            unmatched
+            |> Seq.rev
+            |> Seq.fold (fun (toUpdate, toDelete, available) (id, record) ->
+                let g = group record
+                match Map.tryFind g available with
+                | Some((_, target) :: rest) -> (id, record, target) :: toUpdate, toDelete, Map.add g rest available
+                | _ -> toUpdate, (id, record) :: toDelete, available
+            ) ([], [], available)
+        let unpaired = available |> Map.values |> Seq.concat |> Seq.map fst |> Set.ofSeq
+        {
+            ToUpdate = toUpdate |> List.rev |> Array.ofList
+            ToDelete = toDelete |> List.rev |> Array.ofList
+            ToCreate = missing |> Array.filter (fun (index, _) -> unpaired.Contains index) |> Array.map snd
+        }
 
     let private problems (domain: string) (original: DigitalOceanDnsRecord): string[] =
         let record = clean original
@@ -331,7 +366,11 @@ module internal DigitalOceanDnsApi =
         return Array.ofSeq records
     }
 
-    let createRecord (client: HttpClient) (domain: string) (record: DigitalOceanDnsRecord): Async<unit> = async {
+    let private recordUri (domain: string) (id: int64) =
+        Uri($"{recordsUri(domain).OriginalString}/{id}", UriKind.Relative)
+
+    /// The JSON body of the requests creating and updating the record.
+    let private recordContent(record: DigitalOceanDnsRecord): HttpContent =
         let body = JsonObject()
         body.Add("type", JsonValue.Create record.Type)
         body.Add("name", JsonValue.Create record.Name)
@@ -344,14 +383,23 @@ module internal DigitalOceanDnsApi =
         addOptional "weight" record.Weight
         addOptional "flags" record.Flags
         record.Tag |> Option.iter (fun tag -> body.Add("tag", JsonValue.Create tag))
-        use content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json")
+        new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json")
+
+    let createRecord (client: HttpClient) (domain: string) (record: DigitalOceanDnsRecord): Async<unit> = async {
+        use content = recordContent record
         let! _ = send client HttpMethod.Post (recordsUri domain) (Some content)
         ()
     }
 
+    let updateRecord (client: HttpClient) (domain: string) (id: int64) (record: DigitalOceanDnsRecord)
+            : Async<unit> = async {
+        use content = recordContent record
+        let! _ = send client HttpMethod.Put (recordUri domain id) (Some content)
+        ()
+    }
+
     let deleteRecord (client: HttpClient) (domain: string) (id: int64): Async<unit> = async {
-        let uri = Uri($"{recordsUri(domain).OriginalString}/{id}", UriKind.Relative)
-        let! _ = send client HttpMethod.Delete uri None
+        let! _ = send client HttpMethod.Delete (recordUri domain id) None
         ()
     }
 
@@ -362,9 +410,9 @@ module internal DigitalOceanDnsApi =
 /// <remarks>
 /// <para>
 /// <see cref="M:Fabricator.Resources.DigitalOceanDns.Domain(System.String,Fabricator.Core.ISecretStore,Fabricator.Core.SecretName,System.Collections.Generic.IEnumerable{Fabricator.Resources.DigitalOceanDnsRecord},Microsoft.FSharp.Core.FSharpOption{System.Collections.Generic.IEnumerable{Fabricator.Core.Resource}})"/>
-/// manages all the DNS records of a domain: when applied, it deletes the records not declared, and creates the missing
-/// ones. The SOA and NS records of the domain itself (<c>@</c>) are managed by DigitalOcean and are ignored. The
-/// changes are shown as a diff of the records in the zone file format.
+/// manages all the DNS records of a domain: when applied, it updates the changed records in place, deletes the records
+/// not declared, and creates the missing ones. The SOA and NS records of the domain itself (<c>@</c>) are managed by
+/// DigitalOcean and are ignored. The changes are shown as a diff of the records in the zone file format.
 /// </para>
 /// <para>
 /// The resources require a DigitalOcean API token, taken from a secret store. Use a
@@ -481,15 +529,32 @@ type DigitalOceanDns =
             Apply = fun ctx -> async {
                 use client = openClient ctx
                 let! existing = listManagedRecords client ctx
-                let toDelete, toCreate = DigitalOceanDnsZone.plan domain existing desired
+                let changes = DigitalOceanDnsZone.plan domain existing desired
 
-                // Deleting first avoids conflicts of the new records with the old ones, e.g. of CNAME records.
+                // Updating in place first leaves no gap in the changed records. The updates can't conflict with other
+                // records: the existing records equal to the desired ones are kept as they are.
                 do! ctx.Reporter.WithProgress(
-                    "Deleting existing records",
-                    Some(toDelete.Length),
+                    "Updating changed records",
+                    Some(changes.ToUpdate.Length),
                     ProgressUnit.Items,
                     fun reporter -> async {
-                        for index, (id, record) in Seq.indexed toDelete do
+                        for index, (id, oldRecord, newRecord) in Seq.indexed changes.ToUpdate do
+                            let oldLine = DigitalOceanDnsZone.key domain oldRecord
+                            let newLine = DigitalOceanDnsZone.key domain newRecord
+                            ctx.Reporter.Log $"Updating record: {oldLine} → {newLine}"
+                            do! DigitalOceanDnsApi.updateRecord client domain id newRecord
+                            reporter.Report(int64(index + 1))
+                    }
+                )
+
+                // Deleting before creating avoids conflicts of the new records with the old ones, e.g. when a CNAME
+                // record replaces a record of another type.
+                do! ctx.Reporter.WithProgress(
+                    "Deleting existing records",
+                    Some(changes.ToDelete.Length),
+                    ProgressUnit.Items,
+                    fun reporter -> async {
+                        for index, (id, record) in Seq.indexed changes.ToDelete do
                             ctx.Reporter.Log $"Deleting record: {DigitalOceanDnsZone.key domain record}"
                             do! DigitalOceanDnsApi.deleteRecord client domain id
                             reporter.Report(int64(index + 1))
@@ -498,10 +563,10 @@ type DigitalOceanDns =
 
                 do! ctx.Reporter.WithProgress(
                     "Creating new records",
-                    Some(toCreate.Length),
+                    Some(changes.ToCreate.Length),
                     ProgressUnit.Items,
                     fun reporter -> async {
-                        for index, record in Seq.indexed toCreate do
+                        for index, record in Seq.indexed changes.ToCreate do
                             ctx.Reporter.Log $"Creating record: {DigitalOceanDnsZone.key domain record}"
                             do! DigitalOceanDnsApi.createRecord client domain record
                             reporter.Report(int64(index + 1))
@@ -529,13 +594,13 @@ type DigitalOceanDns =
     /// <remarks>
     /// <para>
     /// The resource owns all the records of the domain: when applied, it deletes the records not passed in
-    /// <paramref name="records"/>, and creates the missing ones. A changed record (e.g. one with another TTL) is
-    /// deleted and created again. The only exceptions are the SOA and NS records of the domain itself (<c>@</c>):
-    /// DigitalOcean manages them, so the resource ignores them, and doesn't allow to declare them.
+    /// <paramref name="records"/>, and creates the missing ones. A changed record of the same type and name (e.g. one
+    /// with another TTL or data) is updated in place. The only exceptions are the SOA and NS records of the domain
+    /// itself (<c>@</c>): DigitalOcean manages them, so the resource ignores them, and doesn't allow to declare them.
     /// </para>
     /// <para>
-    /// The changes are shown as a diff of the records in the zone file format, one record per line. Every deletion
-    /// and creation is written to the log before it is executed.
+    /// The changes are shown as a diff of the records in the zone file format, one record per line. Every update,
+    /// deletion, and creation is written to the log before it is executed.
     /// </para>
     /// <para>
     /// The token is required for both the check and the application. See

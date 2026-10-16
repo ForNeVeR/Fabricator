@@ -25,7 +25,7 @@ let private token = "test-token"
 
 /// <summary>
 /// An in-memory DigitalOcean domain records API. Records its requests to the log: <c>GET page=N</c>,
-/// <c>DELETE id</c>, and <c>POST type name data</c>.
+/// <c>DELETE id</c>, <c>POST type name data</c>, and <c>PUT id type name data</c>.
 /// </summary>
 type private FakeDigitalOceanApi(log: EventLog) =
     inherit HttpMessageHandler()
@@ -59,6 +59,25 @@ type private FakeDigitalOceanApi(log: EventLog) =
             if hostName = domain then "@" else hostName
         | "CAA" when data.EndsWith "." -> data.Substring(0, data.Length - 1)
         | _ -> data
+
+    /// Reads the record from the body of a create or update request, as DigitalOcean would store it.
+    static member private ReadRecord(request: HttpRequestMessage): Task<DigitalOceanDnsRecord> = task {
+        let! content = (nonNull request.Content).ReadAsStringAsync()
+        let json = nonNull (JsonNode.Parse content)
+        let field (name: string) = json[name] |> Option.ofObj
+        let recordType = (nonNull json["type"]).GetValue<string>()
+        return {
+            Type = recordType
+            Name = (nonNull json["name"]).GetValue<string>()
+            Data = FakeDigitalOceanApi.StoredData(recordType, (nonNull json["data"]).GetValue<string>())
+            Ttl = (nonNull json["ttl"]).GetValue<int>()
+            Priority = field "priority" |> Option.map _.GetValue<int>()
+            Port = field "port" |> Option.map _.GetValue<int>()
+            Weight = field "weight" |> Option.map _.GetValue<int>()
+            Flags = field "flags" |> Option.map _.GetValue<int>()
+            Tag = field "tag" |> Option.map _.GetValue<string>()
+        }
+    }
 
     static member private ToJson(id: int64, record: DigitalOceanDnsRecord): JsonNode =
         let nullable (value: JsonNode option): JsonNode | null = match value with Some v -> v | None -> null
@@ -107,26 +126,23 @@ type private FakeDigitalOceanApi(log: EventLog) =
             ])
             return respond HttpStatusCode.OK (body.ToJsonString())
         elif request.Method = HttpMethod.Post && uri.AbsolutePath = recordsPath then
-            let! content = (nonNull request.Content).ReadAsStringAsync()
-            let json = nonNull (JsonNode.Parse content)
-            let field (name: string) = json[name] |> Option.ofObj
-            let recordType = (nonNull json["type"]).GetValue<string>()
-            let record = {
-                Type = recordType
-                Name = (nonNull json["name"]).GetValue<string>()
-                Data = FakeDigitalOceanApi.StoredData(recordType, (nonNull json["data"]).GetValue<string>())
-                Ttl = (nonNull json["ttl"]).GetValue<int>()
-                Priority = field "priority" |> Option.map _.GetValue<int>()
-                Port = field "port" |> Option.map _.GetValue<int>()
-                Weight = field "weight" |> Option.map _.GetValue<int>()
-                Flags = field "flags" |> Option.map _.GetValue<int>()
-                Tag = field "tag" |> Option.map _.GetValue<string>()
-            }
+            let! record = FakeDigitalOceanApi.ReadRecord request
             log.Add $"POST {record.Type} {record.Name} {record.Data}"
             let id = nextId
             this.Add record
             let body = JsonObject(dict [ "domain_record", FakeDigitalOceanApi.ToJson(id, record) ])
             return respond HttpStatusCode.Created (body.ToJsonString())
+        elif request.Method = HttpMethod.Put && uri.AbsolutePath.StartsWith(recordsPath + "/") then
+            let id = int64 (uri.AbsolutePath.Substring(recordsPath.Length + 1))
+            let! record = FakeDigitalOceanApi.ReadRecord request
+            log.Add $"PUT {id} {record.Type} {record.Name} {record.Data}"
+            match Seq.tryFindIndex (fun (recordId, _) -> recordId = id) records with
+            | Some index ->
+                records[index] <- (id, record)
+                let body = JsonObject(dict [ "domain_record", FakeDigitalOceanApi.ToJson(id, record) ])
+                return respond HttpStatusCode.OK (body.ToJsonString())
+            | None ->
+                return respond HttpStatusCode.NotFound """{"id":"not_found","message":"The resource was not found."}"""
         elif request.Method = HttpMethod.Delete && uri.AbsolutePath.StartsWith(recordsPath + "/") then
             let id = int64 (uri.AbsolutePath.Substring(recordsPath.Length + 1))
             log.Add $"DELETE {id}"
@@ -409,7 +425,7 @@ let ``API error is reported``(): Task = task {
 }
 
 [<Fact>]
-let ``Changed TTL recreates the record``(): Task = task {
+let ``Changed TTL updates the record in place``(): Task = task {
     let log = EventLog()
     let api = new FakeDigitalOceanApi(log)
     api.Add(Record("TXT", "@", "my-text"))
@@ -417,12 +433,45 @@ let ``Changed TTL recreates the record``(): Task = task {
     let! _ = apply log resource
     Assert.Equal<string seq>([
         "GET page=1"
-        "log: Deleting record: @ 1800 IN TXT \"my-text\""
-        "DELETE 1"
-        "log: Creating record: @ 3600 IN TXT \"my-text\""
-        "POST TXT @ my-text"
+        "log: Updating record: @ 1800 IN TXT \"my-text\" → @ 3600 IN TXT \"my-text\""
+        "PUT 1 TXT @ my-text"
     ], log.Events)
     Assert.Equal<DigitalOceanDnsRecord list>([ Record("TXT", "@", "my-text", ttl = 3600) ], api.Records)
+}
+
+[<Fact>]
+let ``Changed records of the same type and name are paired in order``(): Task = task {
+    let log = EventLog()
+    let api = new FakeDigitalOceanApi(log)
+    api.Add(Record("TXT", "@", "a")) // 1
+    api.Add(Record("TXT", "@", "b")) // 2
+    let resource = create api log [ Record("TXT", "@", "b"); Record("TXT", "@", "c"); Record("TXT", "@", "d") ]
+    let! _ = apply log resource
+    Assert.Equal<string seq>([
+        "GET page=1"
+        "log: Updating record: @ 1800 IN TXT \"a\" → @ 1800 IN TXT \"c\""
+        "PUT 1 TXT @ c"
+        "log: Creating record: @ 1800 IN TXT \"d\""
+        "POST TXT @ d"
+    ], log.Events)
+    let! change = check log resource
+    Assert.Equal(NoChanges, change)
+}
+
+[<Fact>]
+let ``Changed record type deletes the old record before creating the new one``(): Task = task {
+    let log = EventLog()
+    let api = new FakeDigitalOceanApi(log)
+    api.Add(Record("A", "www", "1.2.3.4"))
+    let resource = create api log [ Record("CNAME", "www", "example.org.") ]
+    let! _ = apply log resource
+    Assert.Equal<string seq>([
+        "GET page=1"
+        "log: Deleting record: www 1800 IN A 1.2.3.4"
+        "DELETE 1"
+        "log: Creating record: www 1800 IN CNAME example.org."
+        "POST CNAME www example.org"
+    ], log.Events)
 }
 
 [<Theory>]
