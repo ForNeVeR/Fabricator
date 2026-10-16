@@ -13,8 +13,8 @@ open Fabricator.Core
 type EventLog() =
     let events = ConcurrentQueue<string>()
     member _.Add(event: string) = events.Enqueue event
-    member _.Events: string list = Seq.toList events
-    member this.IndexOf(event: string): int = List.findIndex ((=) event) this.Events
+    member _.Events: string seq = events
+    member this.IndexOf(event: string): int = Seq.findIndex ((=) event) this.Events
 
 /// A resource recording its checks and applications to the log.
 type FakeResource(

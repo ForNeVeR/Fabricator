@@ -33,7 +33,7 @@ let private withSecrets (name: string) (log: EventLog) (secrets: SecretRef list)
     FakeResource(name, log, None, [||], secrets)
 
 let private eventsStartingWith (prefix: string) (log: EventLog) =
-    log.Events |> List.filter _.StartsWith(prefix)
+    log.Events |> Seq.filter _.StartsWith(prefix)
 
 let private assertBefore (first: string) (second: string) (log: EventLog) =
     Assert.True(log.IndexOf first < log.IndexOf second, $"\"{first}\" should happen before \"{second}\": {log.Events}")
@@ -60,7 +60,7 @@ let ``Check only opens the stores of the secrets required by checks``(): Task = 
     let! report, output = runCheck [ r1; r2; r3 ]
 
     Assert.True((Report.checkStatus report = NotAllApplied), output)
-    Assert.Equal<string list>([ "open A [x]"; "open C [z]" ], eventsStartingWith "open " log)
+    Assert.Equal<string seq>([ "open A [x]"; "open C [z]" ], eventsStartingWith "open " log)
 }
 
 [<Fact>]
@@ -79,7 +79,7 @@ let ``Apply opens every store once with the distinct names of its secrets``(): T
     let! report, output = runApply [ r ]
 
     Assert.True(Report.isSuccessful report, output)
-    Assert.Equal<string list>([ "open S [x, y, z]" ], eventsStartingWith "open " log)
+    Assert.Equal<string seq>([ "open S [x, y, z]" ], eventsStartingWith "open " log)
 }
 
 [<Fact>]
@@ -93,9 +93,9 @@ let ``Stores are opened one by one before any task starts``(): Task = task {
 
     let! _, _ = runCheck [ r1; r2 ]
 
-    Assert.Equal<string list>(
+    Assert.Equal<string seq>(
         [ "open A [x]"; "opened A"; "open B [y]"; "opened B" ],
-        log.Events |> List.filter (fun e -> e.StartsWith "open")
+        log.Events |> Seq.filter (fun e -> e.StartsWith "open")
     )
     assertBefore "opened B" "check R1" log
     assertBefore "opened B" "check R2" log
@@ -230,7 +230,7 @@ let ``Store opening failure aborts the execution``(): Task = task {
     let! ex = Assert.ThrowsAsync<InvalidOperationException>(fun () -> runApply [ r1; r2 ] :> Task)
 
     Assert.Equal("Open failure", ex.Message)
-    Assert.Equal<string list>([ "open A [x]"; "opened A"; "open B [y]"; "dispose A" ], log.Events)
+    Assert.Equal<string seq>([ "open A [x]"; "opened A"; "open B [y]"; "dispose A" ], log.Events)
 }
 
 [<Fact>]
@@ -245,7 +245,7 @@ let ``Stores are closed after all the tasks have finished``(): Task = task {
     Assert.True(Report.isSuccessful report, output)
     for store in [ "A"; "B" ] do
         assertBefore "apply R" $"dispose {store}" log
-    Assert.Equal(2, eventsStartingWith "dispose " log |> List.length)
+    Assert.Equal(2, eventsStartingWith "dispose " log |> Seq.length)
 }
 
 [<Fact>]
@@ -296,7 +296,7 @@ let ``Stores are compared by reference``(): Task = task {
     let! report, output = runCheck [ r ]
 
     Assert.True((Report.checkStatus report = NotAllApplied), output)
-    Assert.Equal<string list>([ "open A [x]"; "open B [x]" ], eventsStartingWith "open " log)
+    Assert.Equal<string seq>([ "open A [x]"; "open B [x]" ], eventsStartingWith "open " log)
     Assert.Equal<Set<string * string * string>>(
         set [ "check", "x", "A:x"; "check", "x", "B:x" ],
         Set.ofSeq received
@@ -320,7 +320,7 @@ let ``Secret references with equal contents are different keys``(): Task = task 
 
     Assert.True((Report.checkStatus report = NotAllApplied), output)
     Assert.Equal(2, count)
-    Assert.Equal<string list>([ "open S [x]" ], eventsStartingWith "open " log)
+    Assert.Equal<string seq>([ "open S [x]" ], eventsStartingWith "open " log)
 }
 
 [<Fact>]
@@ -333,5 +333,5 @@ let ``The same secret reference listed twice is fetched once``(): Task = task {
     let! report, output = runCheck [ r ]
 
     Assert.True((Report.checkStatus report = NotAllApplied), output)
-    Assert.Equal<string list>([ "get S x" ], eventsStartingWith "get " log)
+    Assert.Equal<string seq>([ "get S x" ], eventsStartingWith "get " log)
 }

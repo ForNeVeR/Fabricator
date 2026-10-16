@@ -26,6 +26,7 @@ SPDX-License-Identifier: MIT
         <Compile Include="CommandUtil.fs" />
         <Compile Include="Chocolatey.fs" />
         <Compile Include="HostsFile.fs" />
+        <Compile Include="DigitalOceanDns.fs" />
         <Compile Include="DotNetTool.fs" />
     </ItemGroup>
 

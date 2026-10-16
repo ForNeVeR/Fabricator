@@ -25,8 +25,8 @@ let private runApply(roots: FakeResource list) = task {
     return Report.isSuccessful report, report, output.ToString()
 }
 
-let private assertEvents (expected: string list) (log: EventLog) =
-    Assert.Equal<string list>(List.sort expected, List.sort log.Events)
+let private assertEvents (expected: string seq) (log: EventLog) =
+    Assert.Equal<string seq>(Seq.sort expected, Seq.sort log.Events)
 
 let private assertStates (expected: (string * ReportItemState) list) (report: Report) =
     Assert.Equal<(string * ReportItemState) list>(expected, report.Items |> List.map (fun i -> i.ResourceName, i.State))
