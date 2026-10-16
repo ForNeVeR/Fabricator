@@ -6,8 +6,10 @@ namespace Fabricator.Resources
 
 open System
 open System.Collections.Immutable
+open System.Net
 open System.Net.Http
 open System.Net.Http.Headers
+open System.Net.Sockets
 open System.Security
 open System.Text
 open System.Text.Json.Nodes
@@ -70,6 +72,20 @@ module internal DigitalOceanDnsZone =
     /// The header of the zone text, explaining the record lines.
     let Header = "# <name> <ttl> IN <type> <data>"
 
+    /// <summary>
+    /// Parses the IP address of an A (IPv4) or AAAA (IPv6) record. An IPv4 address should be in its canonical
+    /// dotted-decimal form, e.g. <c>1.2.3.4</c>.
+    /// </summary>
+    let private tryParseAddress (recordType: string) (data: string): IPAddress option =
+        match IPAddress.TryParse data with
+        | false, _ -> None
+        | true, address ->
+            match recordType, address with
+            | "A", NonNull address when address.AddressFamily = AddressFamily.InterNetwork && string address = data ->
+                Some address
+            | "AAAA", NonNull address when address.AddressFamily = AddressFamily.InterNetworkV6 -> Some address
+            | _ -> None
+
     /// Brings the domain name to its canonical form: lower-case, without the trailing dot.
     let normalizeDomain(domain: string): string =
         domain.Trim().TrimEnd('.').ToLowerInvariant()
@@ -104,7 +120,10 @@ module internal DigitalOceanDnsZone =
                 if hostName = domain then "@" else hostName
             elif record.Type = "CAA" && record.Tag |> Option.exists CaaDomainTags.Contains && data.EndsWith "." then
                 data.Substring(0, data.Length - 1)
-            else data
+            else
+                match tryParseAddress record.Type data with
+                | Some address -> string address
+                | None -> data
         { record with Data = data }
 
     /// SOA and NS records of the domain itself are managed by DigitalOcean.
@@ -197,6 +216,8 @@ module internal DigitalOceanDnsZone =
             if String.IsNullOrWhiteSpace record.Data then "the data is empty"
             elif HostNameTypes.Contains recordType && record.Data <> "@" && not (record.Data.EndsWith ".") then
                 "host names should be fully qualified, ending with a dot, or \"@\""
+            elif recordType = "A" && (tryParseAddress recordType record.Data).IsNone then "invalid IPv4 address"
+            elif recordType = "AAAA" && (tryParseAddress recordType record.Data).IsNone then "invalid IPv6 address"
 
             // https://docs.digitalocean.com/products/networking/dns/details/limits/
             if record.Ttl < 30 then "the TTL should be at least 30 seconds"
@@ -523,9 +544,10 @@ type DigitalOceanDns =
     /// <para>
     /// Throws an <see cref="T:System.ArgumentException"/> listing all the invalid records if any of the
     /// <paramref name="records"/> is the SOA or NS record of the domain itself, has an unsupported type, a name that is
-    /// not relative to the domain, empty data, a host name that is not fully qualified, a TTL less than 30 seconds,
-    /// misses a field required by its type or has a field not applicable to it, has an unsupported CAA tag, or is
-    /// declared several times.
+    /// not relative to the domain, empty data, a host name that is not fully qualified, an invalid IP address (A
+    /// records require IPv4 addresses in the dotted-decimal form, AAAA records require IPv6 addresses), a TTL less
+    /// than 30 seconds, misses a field required by its type or has a field not applicable to it, has an unsupported
+    /// CAA tag, or is declared several times.
     /// </para>
     /// </remarks>
     static member Domain(

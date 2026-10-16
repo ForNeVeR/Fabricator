@@ -328,6 +328,24 @@ let ``Host names should be fully qualified``(): unit =
     ]
 
 [<Fact>]
+let ``IP addresses should be valid``(): unit =
+    assertInvalid [ Record("A", "www", "1.2.3") ] [ "www 1800 IN A 1.2.3: invalid IPv4 address" ]
+    assertInvalid [ Record("A", "www", "010.1.1.1") ] [ "invalid IPv4 address" ]
+    assertInvalid [ Record("A", "www", "not-an-ip") ] [ "invalid IPv4 address" ]
+    assertInvalid [ Record("A", "www", "2001:db8::1") ] [ "invalid IPv4 address" ]
+    assertInvalid [ Record("AAAA", "www", "1.2.3.4") ] [ "www 1800 IN AAAA 1.2.3.4: invalid IPv6 address" ]
+
+[<Fact>]
+let ``IPv6 addresses are compared in the canonical form``(): Task = task {
+    let log = EventLog()
+    let api = new FakeDigitalOceanApi(log)
+    api.Add(Record("AAAA", "www", "2001:db8::1"))
+    let resource = create api log [ Record("AAAA", "www", "2001:DB8:0:0::1") ]
+    let! change = check log resource
+    Assert.Equal(NoChanges, change)
+}
+
+[<Fact>]
 let ``Record TTL should be at least 30 seconds``(): unit =
     assertInvalid [ Record("TXT", "@", "my-text", ttl = 10) ] [ "the TTL should be at least 30 seconds" ]
 
@@ -411,6 +429,7 @@ let ``Changed TTL recreates the record``(): Task = task {
 [<InlineData("TXT", "@", "say \"hi\" \\o/", "@ 1800 IN TXT \"say \\\"hi\\\" \\\\o/\"")>]
 [<InlineData("A", "www", "1.2.3.4", "www 1800 IN A 1.2.3.4")>]
 [<InlineData("AAAA", "www", "2001:DB8::1", "www 1800 IN AAAA 2001:db8::1")>]
+[<InlineData("AAAA", "www", "2001:DB8:0:0::1", "www 1800 IN AAAA 2001:db8::1")>]
 [<InlineData("CNAME", "blog", "@", "blog 1800 IN CNAME @")>]
 [<InlineData("CNAME", "blog", "Example.org.", "blog 1800 IN CNAME example.org.")>]
 let ``Records are presented as zone lines``(recordType: string, name: string, data: string, expected: string): unit =
