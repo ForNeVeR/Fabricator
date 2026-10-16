@@ -25,8 +25,8 @@ type DigitalOceanDnsRecord =
         /// <summary>The name of the record, relative to the domain; <c>@</c> denotes the domain itself.</summary>
         Name: string
         /// <summary>
-        /// The value of the record, e.g. an IP address, a text, or a host name. Fully qualified host names should end
-        /// with a dot, e.g. <c>mail.example.com.</c>.
+        /// The value of the record, e.g. an IP address, a text, or a host name. Host names must be fully qualified and
+        /// end with a dot, e.g. <c>mail.example.com.</c>, or be <c>@</c> for the domain itself.
         /// </summary>
         Data: string
         /// The time to live of the record, in seconds.
@@ -195,6 +195,8 @@ module internal DigitalOceanDnsZone =
                 "the name should be relative to the domain (use \"@\" for the domain itself)"
 
             if String.IsNullOrWhiteSpace record.Data then "the data is empty"
+            elif HostNameTypes.Contains recordType && record.Data <> "@" && not (record.Data.EndsWith ".") then
+                "host names should be fully qualified, ending with a dot, or \"@\""
 
             // https://docs.digitalocean.com/products/networking/dns/details/limits/
             if record.Ttl < 30 then "the TTL should be at least 30 seconds"
@@ -376,7 +378,8 @@ type DigitalOceanDns =
     /// <param name="recordType">The record type: A, AAAA, CAA, CNAME, MX, NS, SRV, or TXT.</param>
     /// <param name="name">The name of the record, relative to the domain; <c>@</c> denotes the domain itself.</param>
     /// <param name="data">
-    /// The value of the record. Fully qualified host names should end with a dot, e.g. <c>mail.example.com.</c>.
+    /// The value of the record. Host names must be fully qualified and end with a dot, e.g.
+    /// <c>mail.example.com.</c>, or be <c>@</c> for the domain itself.
     /// </param>
     /// <param name="ttl">The time to live of the record, in seconds. 1800 by default.</param>
     /// <param name="priority">The priority, required for MX and SRV records.</param>
@@ -520,8 +523,9 @@ type DigitalOceanDns =
     /// <para>
     /// Throws an <see cref="T:System.ArgumentException"/> listing all the invalid records if any of the
     /// <paramref name="records"/> is the SOA or NS record of the domain itself, has an unsupported type, a name that is
-    /// not relative to the domain, empty data, a TTL less than 30 seconds, misses a field required by its type or has a
-    /// field not applicable to it, has an unsupported CAA tag, or is declared several times.
+    /// not relative to the domain, empty data, a host name that is not fully qualified, a TTL less than 30 seconds,
+    /// misses a field required by its type or has a field not applicable to it, has an unsupported CAA tag, or is
+    /// declared several times.
     /// </para>
     /// </remarks>
     static member Domain(

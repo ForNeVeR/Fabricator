@@ -322,6 +322,12 @@ let ``Record data should not be empty``(): unit =
     assertInvalid [ Record("TXT", "@", "") ] [ "the data is empty" ]
 
 [<Fact>]
+let ``Host names should be fully qualified``(): unit =
+    assertInvalid [ Record("CNAME", "www", "blog") ] [
+        "www 1800 IN CNAME blog.: host names should be fully qualified, ending with a dot, or \"@\""
+    ]
+
+[<Fact>]
 let ``Record TTL should be at least 30 seconds``(): unit =
     assertInvalid [ Record("TXT", "@", "my-text", ttl = 10) ] [ "the TTL should be at least 30 seconds" ]
 
