@@ -65,23 +65,39 @@ module internal DigitalOceanDnsZone =
     /// The header of the zone text, explaining the record lines.
     let Header = "# <name> <ttl> IN <type> <data>"
 
+    /// Brings the domain name to its canonical form: lower-case, without the trailing dot.
+    let normalizeDomain(domain: string): string =
+        domain.Trim().TrimEnd('.').ToLowerInvariant()
+
     /// <summary>
-    /// Brings the record to the form in which equal records are equal: upper-case type, lower-case name, and the data
-    /// without the trailing dot of the host names. DigitalOcean expects the fully qualified host names to end with a
-    /// dot, but doesn't return it.
+    /// Brings the record to the form sent to DigitalOcean: upper-case type, lower-case name, and trimmed data.
     /// </summary>
+    let clean(record: DigitalOceanDnsRecord): DigitalOceanDnsRecord =
+        { record with
+            Type = record.Type.Trim().ToUpperInvariant()
+            Name = record.Name.Trim().ToLowerInvariant()
+            Data = record.Data.Trim() }
+
+    /// <summary>
+    /// Brings the record to the form in which equal records are equal: the <see cref="clean"/> form, with the data
+    /// in lower case (except for the case-sensitive fields) and without the trailing dot of the host names.
+    /// DigitalOcean expects the fully qualified host names to end with a dot, but doesn't return it.
+    /// </summary>
+    /// <param name="domain">The domain name.</param>
+    /// <param name="record">The record to normalize.</param>
+    /// <returns>The normalized record.</returns>
     let normalize(record: DigitalOceanDnsRecord): DigitalOceanDnsRecord =
-        let recordType = record.Type.Trim().ToUpperInvariant()
-        let data = record.Data.Trim()
-        let data = if CaseSensitiveTypes.Contains recordType then data else data.ToLowerInvariant()
+        let record = clean record
+        let data = record.Data
+        let data = if CaseSensitiveTypes.Contains record.Type then data else data.ToLowerInvariant()
         let data =
-            if HostNameTypes.Contains recordType && data.EndsWith "." then data.Substring(0, data.Length - 1)
+            if HostNameTypes.Contains record.Type && data.EndsWith "." then data.Substring(0, data.Length - 1)
             else data
-        { record with Type = recordType; Name = record.Name.Trim().ToLowerInvariant(); Data = data }
+        { record with Data = data }
 
     /// SOA and NS records of the domain itself are managed by DigitalOcean.
     let isUnmanaged(record: DigitalOceanDnsRecord): bool =
-        let record = normalize record
+        let record = clean record
         record.Type = "SOA" || record.Type = "NS" && record.Name = "@"
 
     let private quote(text: string) =
@@ -131,9 +147,10 @@ module internal DigitalOceanDnsZone =
             ) ([], Set.empty)
         Seq.rev toDelete |> Seq.toArray, desired |> Seq.filter (fun r -> not (kept.Contains(key r))) |> Seq.toArray
 
-    let private problems (domain: string) (record: DigitalOceanDnsRecord): string[] =
-        let recordType = record.Type.Trim().ToUpperInvariant()
-        let name = record.Name.Trim().ToLowerInvariant()
+    let private problems (domain: string) (original: DigitalOceanDnsRecord): string[] =
+        let record = clean original
+        let recordType = record.Type
+        let name = record.Name
         let fields = [
             "priority", record.Priority.IsSome
             "port", record.Port.IsSome
@@ -146,7 +163,7 @@ module internal DigitalOceanDnsZone =
                 "SOA and NS records of the domain itself are managed by DigitalOcean and are not managed by this " +
                 "resource"
             elif not (SupportedTypes.Contains recordType) then
-                $"unsupported record type \"{record.Type}\""
+                $"unsupported record type \"{original.Type}\""
             else
                 let required = RequiredFields recordType
                 for field, present in fields do
@@ -379,7 +396,7 @@ type DigitalOceanDns =
     /// <summary>The concurrency group of the resources managing the records of the specified domain.</summary>
     /// <param name="domain">The domain name.</param>
     static member ConcurrencyGroup(domain: string): ConcurrencyGroup =
-        ConcurrencyGroup $"DigitalOceanDns:{domain.Trim().TrimEnd('.').ToLowerInvariant()}"
+        ConcurrencyGroup $"DigitalOceanDns:{DigitalOceanDnsZone.normalizeDomain domain}"
 
     static member internal Create(
         domain: string,
@@ -389,17 +406,11 @@ type DigitalOceanDns =
         dependsOn: Resource seq option,
         handler: HttpMessageHandler option
     ): Resource =
-        let domain = domain.Trim().TrimEnd('.').ToLowerInvariant()
+        let domain = DigitalOceanDnsZone.normalizeDomain domain
         if domain = "" then raise <| ArgumentException("The domain name is empty.", nameof domain)
         let records = Array.ofSeq records
         DigitalOceanDnsZone.validate domain records
-        let desired =
-            records |> Array.map (fun r ->
-                { r with
-                    Type = r.Type.Trim().ToUpperInvariant()
-                    Name = r.Name.Trim().ToLowerInvariant()
-                    Data = r.Data.Trim() }
-            )
+        let desired = records |> Array.map DigitalOceanDnsZone.clean
 
         let token = { Store = tokenStore; Name = tokenName; RequestMode = SecretRequestMode.CheckAndApply }
         let openClient(ctx: ResourceContext) =
