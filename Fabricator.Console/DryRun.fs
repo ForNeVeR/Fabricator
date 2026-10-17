@@ -4,6 +4,7 @@
 
 namespace Fabricator.Console
 
+open System.Collections.Generic
 open Fabricator.Console.Lowering
 open Fabricator.Core
 open Spectre.Console
@@ -21,17 +22,18 @@ module internal DryRun =
     /// <param name="mode">The execution mode.</param>
     /// <param name="roots">The root resources of the execution. Their dependencies are listed as well.</param>
     /// <remarks>
-    /// The resources go in the order of <see cref="M:Fabricator.Console.Lowering.orderResources"/>. Every resource has
-    /// a check action and, in <see cref="F:Fabricator.Console.Lowering.ExecutionMode.CheckAndApply"/> mode, an apply
-    /// action right after it.
+    /// The actions are the tasks of <see cref="M:Fabricator.Console.Lowering.lower"/>, ordered by their resources in the
+    /// order of <see cref="M:Fabricator.Console.Lowering.orderResources"/>, the check of a resource going before its
+    /// application.
     /// </remarks>
     let create (mode: ExecutionMode) (roots: Resource seq): DryRunPlan =
+        let positions = Dictionary<Resource, int>()
+        orderResources roots |> Array.iteri (fun i resource -> positions[resource] <- i)
         {
-            Actions = [|
-                for resource in orderResources roots do
-                    yield { Kind = Check; Resource = resource }
-                    if mode = CheckAndApply then yield { Kind = Apply; Resource = resource }
-            |]
+            Actions =
+                (lower mode roots).Keys
+                |> Seq.sortBy (fun task -> positions[task.Resource], task.Kind)
+                |> Seq.toArray
         }
 
     /// <summary>The marker shown before every action.</summary>

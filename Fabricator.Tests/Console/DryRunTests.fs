@@ -4,7 +4,6 @@
 
 module Fabricator.Tests.Console.DryRunTests
 
-open System.Collections.Generic
 open Fabricator.Console
 open Fabricator.Console.Lowering
 open Fabricator.Tests.FakeResource
@@ -44,16 +43,6 @@ let ``Apply plan lists a check and an application of every resource, dependencie
         ],
         actions plan
     )
-
-[<Theory>]
-[<InlineData false>]
-[<InlineData true>]
-let ``Plan lists the tasks of the execution``(applying: bool): unit =
-    let mode = if applying then CheckAndApply else CheckOnly
-    let roots = sampleRoots()
-    let plan = DryRun.create mode roots
-    Assert.True(HashSet((lower mode roots).Keys).SetEquals plan.Actions)
-    Assert.Equal(plan.Actions.Length, (Array.distinct plan.Actions).Length)
 
 [<Fact>]
 let ``Plan of no resources is empty``(): unit =
