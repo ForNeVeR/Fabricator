@@ -62,7 +62,7 @@ let private collectAll(roots: Resource seq): HashSet<Resource> =
 /// The dependencies of a resource are ordered by name, since the order of
 /// <see cref="P:Fabricator.Core.Resource.DependsOn"/> is not stable between runs.
 /// </remarks>
-let orderResources(roots: Resource seq): Resource list =
+let orderResources(roots: Resource seq): Resource[] =
     let visited = HashSet<Resource>()
     let result = ResizeArray<Resource>()
     let rec walk(resource: Resource) =
@@ -73,7 +73,7 @@ let orderResources(roots: Resource seq): Resource list =
             result.Add resource
     for root in roots do
         walk root
-    List.ofSeq result
+    Array.ofSeq result
 
 /// <summary>
 /// Converts the resource graph reachable from <paramref name="roots"/> to a graph of lowered tasks.

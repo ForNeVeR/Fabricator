@@ -94,3 +94,72 @@ let ``Store opening failure results in an execution error``(): unit =
 let ``Unknown flag is an argument error``(): unit =
     let exitCode, _ = runWithChange [ "check"; "--bogus" ]
     Assert.Equal(EntryPoint.ExitCodes.InvalidArgs, exitCode)
+
+/// A writer with an encoding unable to represent emoji, so the ASCII markers are written.
+type private AsciiWriter() =
+    inherit StringWriter()
+    override _.Encoding = Encoding.ASCII
+
+let private runDryRun (args: string list) =
+    let log = EventLog()
+    let dependency = FakeResource("Dependency", log)
+    let r = FakeResource("R", log, dependency)
+    use output = new AsciiWriter()
+    let exitCode = EntryPoint.run (ExecutionUi.PlainUi output) args [ r.Resource ]
+    exitCode, output.ToString(), log
+
+[<Theory>]
+[<InlineData("check", "--dry-run")>]
+[<InlineData("--dry-run", "check")>]
+let ``Check dry run lists the checks without running them``(arg1: string, arg2: string): unit =
+    let exitCode, output, log = runDryRun [ arg1; arg2 ]
+    Assert.Equal(EntryPoint.ExitCodes.Success, exitCode)
+    Assert.Empty log.Events
+    Assert.Contains("[ ] Dependency: check", output)
+    Assert.Contains("[ ] R: check", output)
+    Assert.DoesNotContain("apply if not applied", output)
+
+[<Theory>]
+[<InlineData("apply", "--dry-run")>]
+[<InlineData("--dry-run", "apply")>]
+let ``Apply dry run lists the checks and applications without running them``(arg1: string, arg2: string): unit =
+    let exitCode, output, log = runDryRun [ arg1; arg2 ]
+    Assert.Equal(EntryPoint.ExitCodes.Success, exitCode)
+    Assert.Empty log.Events
+    Assert.Contains("[ ] Dependency: check", output)
+    Assert.Contains("[ ] Dependency: apply if not applied", output)
+    Assert.Contains("[ ] R: check", output)
+    Assert.Contains("[ ] R: apply if not applied", output)
+
+[<Fact>]
+let ``Dry run accepts the brief flag``(): unit =
+    let exitCode, output, log = runDryRun [ "apply"; "--brief"; "--dry-run" ]
+    Assert.Equal(EntryPoint.ExitCodes.Success, exitCode)
+    Assert.Empty log.Events
+    Assert.Contains("[ ] R: apply if not applied", output)
+
+[<Theory>]
+[<InlineData "check">]
+[<InlineData "apply">]
+let ``Dry run does not open the secret stores``(command: string): unit =
+    let secret = { Store = PlainSecretStore(); Name = SecretName "token" }
+    let r = FakeResource("R", EventLog(), None, [||], [ { Secret = secret; Mode = SecretRequestMode.CheckAndApply } ])
+    use output = new StringWriter()
+    // No input to read the secret from: opening the store would fail.
+    let exitCode = EntryPoint.run (ExecutionUi.PlainUi output) [ command; "--dry-run" ] [ r.Resource ]
+    Assert.Equal(EntryPoint.ExitCodes.Success, exitCode)
+    Assert.DoesNotContain("Enter the secret", output.ToString())
+
+/// A writer failing on any output.
+type private FailingWriter() =
+    inherit TextWriter()
+    override _.Encoding = Encoding.UTF8
+    override _.WriteLine(_: string | null): unit = raise <| IOException "Output failure."
+
+[<Theory>]
+[<InlineData "check">]
+[<InlineData "apply">]
+let ``Dry run output failure results in an execution error``(command: string): unit =
+    let r = FakeResource("R", EventLog())
+    let exitCode = EntryPoint.run (ExecutionUi.PlainUi(new FailingWriter())) [ command; "--dry-run" ] [ r.Resource ]
+    Assert.Equal(EntryPoint.ExitCodes.ExecutionError, exitCode)

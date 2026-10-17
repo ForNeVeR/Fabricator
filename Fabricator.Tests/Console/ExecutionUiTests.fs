@@ -255,6 +255,52 @@ let ``Spectre UI writes the change details according to the flag``(showChanges: 
         lines(Regex.Replace(text, "\u001b" + @"\[[0-9;]*m", ""))
     )
 
+let private samplePlan =
+    let r = FakeResource("Deploy [service]", EventLog())
+    {
+        Actions = [|
+            { Kind = Lowering.Check; Resource = r.Resource }
+            { Kind = Lowering.Apply; Resource = r.Resource }
+        |]
+    }
+
+let private samplePlanLines(useEmoji: bool) =
+    let marker = if useEmoji then "⏸️" else "[ ]"
+    [
+        "Dry run header."
+        $"{marker} Deploy [service]: check"
+        $"{marker} Deploy [service]: apply if not applied"
+        "2 actions"
+    ]
+
+[<Fact>]
+let ``Plain UI writes the dry run with emoji to a Unicode writer``(): unit =
+    use output = new StringWriter()
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteDryRun("Dry run header.", samplePlan)
+    Assert.Equal<string list>(samplePlanLines true, lines(output.ToString()))
+
+[<Fact>]
+let ``Plain UI writes the dry run in ASCII to a non-Unicode writer``(): unit =
+    use output = new AsciiWriter()
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteDryRun("Dry run header.", samplePlan)
+    Assert.Equal<string list>(samplePlanLines false, lines(output.ToString()))
+
+[<Fact>]
+let ``Plain UI writes the header and the summary for an empty dry run``(): unit =
+    use output = new StringWriter()
+    (ExecutionUi.PlainUi output :> ExecutionUi.IExecutionUi).WriteDryRun("Dry run header.", { Actions = Array.empty })
+    Assert.Equal<string list>([ "Dry run header."; "0 actions" ], lines(output.ToString()))
+
+[<Theory>]
+[<InlineData true>]
+[<InlineData false>]
+let ``Spectre UI writes the dry run according to the console Unicode support``(unicode: bool): unit =
+    use output = new StringWriter()
+    let console = createInteractiveConsole output
+    console.Profile.Capabilities.Unicode <- unicode
+    (ExecutionUi.SpectreUi console :> ExecutionUi.IExecutionUi).WriteDryRun("Dry run header.", samplePlan)
+    Assert.Equal<string list>(samplePlanLines unicode, lines(output.ToString()))
+
 let private readSecret(input: string) =
     ExecutionUi.SecretInput.read(ExecutionUi.SecretInput.ofReader(new StringReader(input))) |> Async.StartAsTask
 

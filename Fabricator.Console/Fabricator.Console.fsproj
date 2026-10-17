@@ -17,6 +17,7 @@ SPDX-License-Identifier: MIT
         <Compile Include="Secrets.fs" />
         <Compile Include="Lowering.fs" />
         <Compile Include="Report.fs" />
+        <Compile Include="DryRun.fs" />
         <Compile Include="OrderedLog.fs" />
         <Compile Include="ExecutionUi.fs" />
         <Compile Include="Commands.fs" />

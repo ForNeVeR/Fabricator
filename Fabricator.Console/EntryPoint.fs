@@ -16,10 +16,11 @@ module ExitCodes =
     let NotAllApplied = 3
 
 let private printUsage() =
-    printfn "Arguments: (apply | check) [--brief]"
+    printfn "Arguments: (apply | check) [--brief] [--dry-run]"
     printfn "apply - applies the resources to the current environment, and shows the changes made"
     printfn "check - checks and shows the upcoming changes to the current environment, no actions taken"
     printfn "--brief - only shows the final state of every resource, omitting the details of the changes"
+    printfn "--dry-run - only lists the checks and applications, without performing them or asking for secrets"
 
 /// Runs the command until it completes, cancelling it on the first Ctrl+C. Returns None if the command was cancelled
 /// or has failed.
@@ -58,6 +59,20 @@ let private tryWriteReport (ui: ExecutionUi.IExecutionUi) (showChanges: bool) (r
         eprintfn $"Failed to write the report: {ex}"
         false
 
+/// Writes the actions of the execution without performing them. Returns the exit code.
+let private dryRun (ui: ExecutionUi.IExecutionUi) (mode: Lowering.ExecutionMode) (resources: Resource seq): int =
+    let header =
+        match mode with
+        | Lowering.CheckOnly -> "Dry run: listing the actions to check the current environment."
+        | Lowering.CheckAndApply -> "Dry run: listing the actions to apply the changes to the current environment."
+    try
+        ui.WriteDryRun(header, DryRun.create mode resources)
+        ExitCodes.Success
+    with
+    | ex ->
+        eprintfn $"Failed to write the actions: {ex}"
+        ExitCodes.ExecutionError
+
 /// Like <see cref="M:Fabricator.Console.EntryPoint.main"/>, but with the passed UI.
 let internal run (ui: ExecutionUi.IExecutionUi) (args: string seq) (resources: Resource seq): int =
     let args = Seq.toArray args
@@ -67,8 +82,11 @@ let internal run (ui: ExecutionUi.IExecutionUi) (args: string seq) (resources: R
         else args
 
     let brief, args = args |> Array.contains "--brief", args |> Array.filter ((<>) "--brief")
+    let isDryRun, args = args |> Array.contains "--dry-run", args |> Array.filter ((<>) "--dry-run")
     let writeReport = tryWriteReport ui (not brief)
     match args with
+    | [|"apply"|] when isDryRun -> dryRun ui Lowering.CheckAndApply resources
+    | [|"check"|] when isDryRun -> dryRun ui Lowering.CheckOnly resources
     | [|"apply"|] ->
         match apply ui resources |> runCancellable ui with
         | Some report ->
@@ -113,9 +131,15 @@ let internal run (ui: ExecutionUi.IExecutionUi) (args: string seq) (resources: R
 /// <see cref="T:Fabricator.Core.ResourceChange"/>); the <c>--brief</c> flag omits these details. If the output fails,
 /// the execution ends with an error.
 /// </para>
+/// <para>
+/// With the <c>--dry-run</c> flag, the checks and applications are only listed, in the order of the report, without
+/// performing any of them or opening the secret stores. This allows quickly verifying (e.g. on CI) that the script
+/// compiles and is able to call the actions.
+/// </para>
 /// </remarks>
 /// <param name="args">
-/// The command-line arguments: <c>apply</c> or <c>check</c>, optionally together with <c>--brief</c>.
+/// The command-line arguments: <c>apply</c> or <c>check</c>, optionally together with <c>--brief</c> and
+/// <c>--dry-run</c>.
 /// </param>
 /// <param name="resources">The root resources, i.e., the resources describing the desired environment state.</param>
 /// <returns>The process exit code.</returns>

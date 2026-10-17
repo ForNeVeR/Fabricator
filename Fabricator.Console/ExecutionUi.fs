@@ -141,6 +141,10 @@ type IExecutionUi =
     /// <param name="report">The report.</param>
     /// <param name="showChanges">Whether to show the details of the changes under the report lines.</param>
     abstract WriteReport: report: Report * showChanges: bool -> unit
+    /// <summary>Writes the actions of an execution that is not performed.</summary>
+    /// <param name="header">The line written before the actions.</param>
+    /// <param name="plan">The actions.</param>
+    abstract WriteDryRun: header: string * plan: DryRunPlan -> unit
 
 /// The visual representation of a running task's status and progress.
 type private ITaskRow =
@@ -286,6 +290,14 @@ type PlainUi(writer: TextWriter, secretInput: SecretInput) =
                             writer.WriteLine(Report.detailIndent + detail.Text)
                 writer.WriteLine()
                 writer.WriteLine(Report.formatSummary report)
+        member _.WriteDryRun(header, plan) =
+            writer.WriteLine header
+            writer.WriteLine()
+            if not <| Array.isEmpty plan.Actions then
+                for action in plan.Actions do
+                    writer.WriteLine(DryRun.formatLine useEmoji action)
+                writer.WriteLine()
+            writer.WriteLine(DryRun.formatSummary plan)
         member _.Run(header, _, _, action) = async {
             let! ct = Async.CancellationToken
             let log = OrderedLog(fun lines -> for line in lines do writer.WriteLine line)
@@ -625,6 +637,19 @@ type SpectreUi(console: IAnsiConsole, secretInput: SecretInput) =
                 )
                 paragraph.Append "\n" |> ignore
                 console.Write paragraph
+        member _.WriteDryRun(header, plan) =
+            let useEmoji = console.Profile.Capabilities.Unicode
+            let paragraph = Paragraph()
+            paragraph.Append $"{header}\n\n" |> ignore
+            if not <| Array.isEmpty plan.Actions then
+                for action in plan.Actions do
+                    paragraph
+                        .Append(DryRun.marker useEmoji, Style DryRun.color)
+                        .Append($" {DryRun.description action}\n")
+                    |> ignore
+                paragraph.Append "\n" |> ignore
+            paragraph.Append $"{DryRun.formatSummary plan}\n" |> ignore
+            console.Write paragraph
         member _.Run(header, title, totalResources, action) = async {
             let! ct = Async.CancellationToken
             let log = OrderedLog(writeLines console)

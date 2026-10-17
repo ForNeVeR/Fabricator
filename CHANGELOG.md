@@ -42,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `Secrets.Materialize` and `Secrets.OfString` to convert between `SecureString` and `string`.
 - A new resource, `DigitalOceanDns.Domain`, managing all the DNS records of a domain hosted by [DigitalOcean DNS](https://docs.digitalocean.com/products/networking/dns/), with the API token taken from a secret store (passed as a `SecretRef`). The records not declared are deleted, except the SOA and NS records of the domain itself, which are managed by DigitalOcean. The changes are shown as a diff of the records in the zone file format.
 - The console asks for the secrets without echoing them. If the standard input is redirected, the secrets are read from it, one per line.
+- `--dry-run` flag for `check` and `apply` (e.g. `apply --dry-run`): only prints the list of the checks and applications the command would perform, in the order of the report, marked with `⏸️` (or `[ ]` if the output doesn't support Unicode). No resource is checked or applied and no secret store is opened. Use it for a quick CI check that the script compiles and is able to call the actions.
 - Ctrl+C support in `EntryPoint.main`: on the first Ctrl+C, no new resources are processed, the running ones are notified via their `Async.CancellationToken`, and the program exits with code 2 after all of them have finished. A second Ctrl+C terminates the program immediately.
 
 ### Fixed

@@ -15,6 +15,7 @@ SPDX-License-Identifier: MIT
         <Compile Include="FakeResource.fs" />
         <Compile Include="FakeSecretStore.fs" />
         <Compile Include="Console\CommandsTests.fs" />
+        <Compile Include="Console\DryRunTests.fs" />
         <Compile Include="Console\EntryPointTests.fs" />
         <Compile Include="Console\ExecutionUiTests.fs" />
         <Compile Include="Console\LoweringTests.fs" />

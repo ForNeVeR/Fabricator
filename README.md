@@ -31,6 +31,8 @@ To start using Fabricator, you should:
 2. Run the script with `dotnet fsi ./script.fsx check` — this will check the environment and show the changes that are about to be performed (add `--brief` to only see which resources are not applied, without the change details).
 3. If everything's alright, run the script via `dotnet fsi ./script.fsx apply` — this will apply the changes to the current environment.
 
+Add `--dry-run` to either command (e.g. `dotnet fsi ./script.fsx apply --dry-run`) to only print the list of the checks and applications it would perform, marked with `⏸️` (or `[ ]` if the output doesn't support Unicode). No resource is checked or applied, and no secret store is opened, so no input is required. This is useful as a quick CI check that the script compiles and is able to call the actions.
+
 Quick script example:
 
 ```fsharp
