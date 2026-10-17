@@ -66,8 +66,8 @@ let ``Brief report omits the changes``(arg1: string, arg2: string): unit =
 [<Fact>]
 let ``Apply passes the secrets entered into the plain store``(): unit =
     let store = PlainSecretStore()
-    let secret = { Store = store; Name = SecretName "token"; RequestMode = SecretRequestMode.ApplyOnly }
-    let r = FakeResource("R", EventLog(), None, [||], [ secret ])
+    let secret = { Store = store; Name = SecretName "token" }
+    let r = FakeResource("R", EventLog(), None, [||], [ { Secret = secret; Mode = SecretRequestMode.ApplyOnly } ])
     let mutable received = None
     r.OnApplyWithContext <- fun ctx -> async { received <- Some(Materialize ctx.Secrets[secret]) }
     use output = new StringWriter()
@@ -83,8 +83,8 @@ let ``Apply passes the secrets entered into the plain store``(): unit =
 
 [<Fact>]
 let ``Store opening failure results in an execution error``(): unit =
-    let secret = { Store = PlainSecretStore(); Name = SecretName "token"; RequestMode = SecretRequestMode.CheckOnly }
-    let r = FakeResource("R", EventLog(), None, [||], [ secret ])
+    let secret = { Store = PlainSecretStore(); Name = SecretName "token" }
+    let r = FakeResource("R", EventLog(), None, [||], [ { Secret = secret; Mode = SecretRequestMode.CheckOnly } ])
     use output = new StringWriter()
     // No input to read the secret from.
     let exitCode = EntryPoint.run (ExecutionUi.PlainUi output) [ "check" ] [ r.Resource ]

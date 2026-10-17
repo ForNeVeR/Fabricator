@@ -95,20 +95,8 @@ type ISecretStore =
     abstract Open: ui: ISecretStoreUi * context: SecretStoreContext -> Async<ISecretStoreScope>
 
 /// <summary>
-/// Defines which operations of a resource require a secret, see <see cref="T:Fabricator.Core.SecretRef"/>.
-/// </summary>
-[<RequireQualifiedAccess>]
-type SecretRequestMode =
-    /// <summary>Only the check (<see cref="P:Fabricator.Core.Resource.AlreadyApplied"/>) requires the secret.</summary>
-    | CheckOnly
-    /// <summary>Only the application (<see cref="P:Fabricator.Core.Resource.Apply"/>) requires the secret.</summary>
-    | ApplyOnly
-    /// Both the check and the application require the secret.
-    | CheckAndApply
-
-/// <summary>
-/// A reference to a secret required by a resource: the store, the name of the secret in the store, and the operations
-/// requiring it. See <see cref="P:Fabricator.Core.Resource.Secrets"/>.
+/// A reference to a secret: the store, and the name of the secret in the store. Resources requiring secrets from the
+/// user should accept them as references.
 /// </summary>
 /// <remarks>
 /// References are compared by reference: every reference object is a separate key of
@@ -123,7 +111,33 @@ type SecretRef =
         Store: ISecretStore
         /// The name of the secret in the store.
         Name: SecretName
-        /// The operations of the resource requiring the secret.
-        RequestMode: SecretRequestMode
     }
-    override this.ToString() = $"{this.Name} ({this.RequestMode})"
+    override this.ToString() = string this.Name
+
+/// <summary>
+/// Defines which operations of a resource require a secret, see <see cref="T:Fabricator.Core.SecretRequest"/>.
+/// </summary>
+[<RequireQualifiedAccess>]
+type SecretRequestMode =
+    /// <summary>Only the check (<see cref="P:Fabricator.Core.Resource.AlreadyApplied"/>) requires the secret.</summary>
+    | CheckOnly
+    /// <summary>Only the application (<see cref="P:Fabricator.Core.Resource.Apply"/>) requires the secret.</summary>
+    | ApplyOnly
+    /// Both the check and the application require the secret.
+    | CheckAndApply
+
+/// <summary>
+/// A secret required by a resource, and the operations requiring it. See
+/// <see cref="P:Fabricator.Core.Resource.Secrets"/>.
+/// </summary>
+type SecretRequest =
+    {
+        /// <summary>
+        /// The secret. The operations receive its value under this key, see
+        /// <see cref="P:Fabricator.Core.ResourceContext.Secrets"/>.
+        /// </summary>
+        Secret: SecretRef
+        /// The operations of the resource requiring the secret.
+        Mode: SecretRequestMode
+    }
+    override this.ToString() = $"{this.Secret} ({this.Mode})"

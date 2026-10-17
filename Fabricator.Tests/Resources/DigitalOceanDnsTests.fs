@@ -161,7 +161,7 @@ type private FakeDigitalOceanApi(log: EventLog) =
 
 let private create (api: FakeDigitalOceanApi) (log: EventLog) (records: DigitalOceanDnsRecord list): Resource =
     let store = FakeSecretStore("store", log)
-    DigitalOceanDns.Create(domain, store, SecretName "digitalocean-token", records, None, Some api)
+    DigitalOceanDns.Create(domain, store.Ref "digitalocean-token", records, None, Some api)
 
 /// A fresh context for every operation, since the resource disposes the secrets it receives.
 let private context (log: EventLog) (resource: Resource): ResourceContext = {
@@ -171,7 +171,7 @@ let private context (log: EventLog) (resource: Resource): ResourceContext = {
             member _.Log message = log.Add $"log: {message}"
             member _.WithProgress(_, _, _, action) = action ProgressReporter.Null
     }
-    Secrets = Dictionary(resource.Secrets |> Seq.map (fun s -> KeyValuePair(s, Secrets.OfString token)))
+    Secrets = Dictionary(resource.Secrets |> Seq.map (fun s -> KeyValuePair(s.Secret, Secrets.OfString token)))
 }
 
 let private check (log: EventLog) (resource: Resource) =

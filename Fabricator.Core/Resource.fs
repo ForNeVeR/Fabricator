@@ -109,7 +109,7 @@ type Resource =
 
         /// <summary>
         /// The secrets the resource requires. Every secret is passed to the operations of the resource defined by its
-        /// <see cref="P:Fabricator.Core.SecretRef.RequestMode"/>, via
+        /// <see cref="P:Fabricator.Core.SecretRequest.Mode"/>, via
         /// <see cref="P:Fabricator.Core.ResourceContext.Secrets"/>.
         /// </summary>
         /// <remarks>
@@ -124,7 +124,7 @@ type Resource =
         /// Use <see cref="P:Fabricator.Core.ResourceModule.NoSecrets"/> for resources without secrets.
         /// </para>
         /// </remarks>
-        Secrets: ImmutableArray<SecretRef>
+        Secrets: ImmutableArray<SecretRequest>
     }
     override this.ToString() = this.PresentableName
 
@@ -135,4 +135,4 @@ module Resource =
     let NoDependencies: ImmutableHashSet<Resource> = ImmutableHashSet<Resource>.Empty
 
     /// An empty secret list, to be used for resources without secrets.
-    let NoSecrets: ImmutableArray<SecretRef> = ImmutableArray<SecretRef>.Empty
+    let NoSecrets: ImmutableArray<SecretRequest> = ImmutableArray<SecretRequest>.Empty

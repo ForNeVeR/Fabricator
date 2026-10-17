@@ -24,7 +24,7 @@ type FakeResource(
     log: EventLog,
     lock: ConcurrencyGroup option,
     dependencies: FakeResource[],
-    secrets: SecretRef seq
+    secrets: SecretRequest seq
 ) as this =
     let resource = {
         PresentableName = name

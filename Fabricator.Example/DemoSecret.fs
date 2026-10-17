@@ -29,7 +29,7 @@ let private useSecret (ctx: ResourceContext) (secret: SecretRef) (operation: str
     do! Async.Sleep 500
 }
 
-let private demo (name: string) (secrets: SecretRef list) (check: ResourceContext -> Async<unit>)
+let private demo (name: string) (secrets: SecretRequest list) (check: ResourceContext -> Async<unit>)
                  (apply: ResourceContext -> Async<unit>): Resource = {
     PresentableName = $"Demo secret: {name}"
     DependsOn = Resource.NoDependencies
@@ -48,14 +48,17 @@ let private demo (name: string) (secrets: SecretRef list) (check: ResourceContex
 let private noAction (_: ResourceContext) = async.Return()
 
 let private checkAndApply =
-    let secret = { Store = store; Name = SecretName "check-and-apply"; RequestMode = SecretRequestMode.CheckAndApply }
-    demo "check and apply" [ secret ] (fun ctx -> useSecret ctx secret "check") (fun ctx -> useSecret ctx secret "apply")
+    let secret = { Store = store; Name = SecretName "check-and-apply" }
+    demo "check and apply" [ { Secret = secret; Mode = SecretRequestMode.CheckAndApply } ]
+        (fun ctx -> useSecret ctx secret "check")
+        (fun ctx -> useSecret ctx secret "apply")
 
 /// Two references to the same secret: the store asks for it once.
 let private applyOnly =
-    let reference() = { Store = store; Name = SecretName "apply-only"; RequestMode = SecretRequestMode.ApplyOnly }
+    let reference() = { Store = store; Name = SecretName "apply-only" }
     let first, second = reference(), reference()
-    demo "apply only" [ first; second ] noAction (fun ctx -> async {
+    let request secret = { Secret = secret; Mode = SecretRequestMode.ApplyOnly }
+    demo "apply only" [ request first; request second ] noAction (fun ctx -> async {
         do! useSecret ctx first "apply (first reference)"
         do! useSecret ctx second "apply (second reference)"
     })

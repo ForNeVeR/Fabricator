@@ -21,8 +21,12 @@ type FakeSecretStore(name: string, log: EventLog) =
     member val Returned = ConcurrentQueue<SecureString>()
 
     /// Creates a new reference to a secret of this store.
-    member this.Ref(secretName: string, mode: SecretRequestMode): SecretRef =
-        { Store = this; Name = SecretName secretName; RequestMode = mode }
+    member this.Ref(secretName: string): SecretRef =
+        { Store = this; Name = SecretName secretName }
+
+    /// Creates a request of a secret of this store, with a new reference to the secret.
+    member this.Request(secretName: string, mode: SecretRequestMode): SecretRequest =
+        { Secret = this.Ref secretName; Mode = mode }
 
     override _.ToString() = name
 

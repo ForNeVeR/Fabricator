@@ -70,14 +70,14 @@ To only print the resource states without the change details, pass the `--brief`
 
 Secrets
 -------
-A resource may require secrets, e.g. an access token for an API it calls. It should list them in `Secrets`, each one with the store to get it from, and the operations requiring it. The operation receives the secrets via its `ResourceContext`:
+A resource may require secrets, e.g. an access token for an API it calls. A secret is referenced by a `SecretRef`: the store to get it from, and its name in the store. The resource should list the secrets in `Secrets` as `SecretRequest`s, each one with the reference and the operations requiring the secret. The operation receives the secrets via its `ResourceContext`, by their references:
 
 ```fsharp
-let token = { Store = store; Name = SecretName "api-token"; RequestMode = SecretRequestMode.ApplyOnly }
+let token = { Store = store; Name = SecretName "api-token" }
 
 // In the resource:
 {
-    Secrets = ImmutableArray.Create token
+    Secrets = ImmutableArray.Create { Secret = token; Mode = SecretRequestMode.ApplyOnly }
     Apply = fun ctx -> async {
         do // Dispose the secret as soon as it's not needed anymore.
             use value = ctx.Secrets[token]
@@ -87,6 +87,8 @@ let token = { Store = store; Name = SecretName "api-token"; RequestMode = Secret
     }
 }
 ```
+
+A resource taking a secret from the user (e.g. `DigitalOceanDns.Domain`) should accept a `SecretRef`, and decide itself which operations require it.
 
 Fabricator opens all the required stores before checking or applying anything, so a store asking the user for input can do it in the beginning of the execution. See [`Fabricator.Core`][core] for the details.
 

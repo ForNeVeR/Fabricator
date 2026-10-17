@@ -29,7 +29,7 @@ let private runApply(roots: FakeResource list) = task {
     return report, output.ToString()
 }
 
-let private withSecrets (name: string) (log: EventLog) (secrets: SecretRef list) =
+let private withSecrets (name: string) (log: EventLog) (secrets: SecretRequest list) =
     FakeResource(name, log, None, [||], secrets)
 
 let private eventsStartingWith (prefix: string) (log: EventLog) =
@@ -53,9 +53,9 @@ let private recordSecrets (resource: FakeResource) =
 let ``Check only opens the stores of the secrets required by checks``(): Task = task {
     let log = EventLog()
     let a, b, c = FakeSecretStore("A", log), FakeSecretStore("B", log), FakeSecretStore("C", log)
-    let r1 = withSecrets "R1" log [ a.Ref("x", SecretRequestMode.CheckOnly) ]
-    let r2 = withSecrets "R2" log [ b.Ref("y", SecretRequestMode.ApplyOnly) ]
-    let r3 = withSecrets "R3" log [ c.Ref("z", SecretRequestMode.CheckAndApply) ]
+    let r1 = withSecrets "R1" log [ a.Request("x", SecretRequestMode.CheckOnly) ]
+    let r2 = withSecrets "R2" log [ b.Request("y", SecretRequestMode.ApplyOnly) ]
+    let r3 = withSecrets "R3" log [ c.Request("z", SecretRequestMode.CheckAndApply) ]
 
     let! report, output = runCheck [ r1; r2; r3 ]
 
@@ -68,12 +68,12 @@ let ``Apply opens every store once with the distinct names of its secrets``(): T
     let log = EventLog()
     let store = FakeSecretStore("S", log)
     let d = withSecrets "D" log [
-        store.Ref("x", SecretRequestMode.CheckOnly)
-        store.Ref("y", SecretRequestMode.ApplyOnly)
+        store.Request("x", SecretRequestMode.CheckOnly)
+        store.Request("y", SecretRequestMode.ApplyOnly)
     ]
     let r = FakeResource("R", log, None, [| d |], [
-        store.Ref("x", SecretRequestMode.ApplyOnly)
-        store.Ref("z", SecretRequestMode.CheckAndApply)
+        store.Request("x", SecretRequestMode.ApplyOnly)
+        store.Request("z", SecretRequestMode.CheckAndApply)
     ])
 
     let! report, output = runApply [ r ]
@@ -88,8 +88,8 @@ let ``Stores are opened one by one before any task starts``(): Task = task {
     let a, b = FakeSecretStore("A", log), FakeSecretStore("B", log)
     for store in [ a; b ] do
         store.OnOpen <- fun () -> Async.Sleep 50
-    let r1 = withSecrets "R1" log [ a.Ref("x", SecretRequestMode.CheckOnly) ]
-    let r2 = withSecrets "R2" log [ b.Ref("y", SecretRequestMode.CheckOnly) ]
+    let r1 = withSecrets "R1" log [ a.Request("x", SecretRequestMode.CheckOnly) ]
+    let r2 = withSecrets "R2" log [ b.Request("y", SecretRequestMode.CheckOnly) ]
 
     let! _, _ = runCheck [ r1; r2 ]
 
@@ -106,9 +106,9 @@ let ``Each action receives the secrets of its kind``(): Task = task {
     let log = EventLog()
     let store = FakeSecretStore("S", log)
     let r = withSecrets "R" log [
-        store.Ref("c", SecretRequestMode.CheckOnly)
-        store.Ref("a", SecretRequestMode.ApplyOnly)
-        store.Ref("b", SecretRequestMode.CheckAndApply)
+        store.Request("c", SecretRequestMode.CheckOnly)
+        store.Request("a", SecretRequestMode.ApplyOnly)
+        store.Request("b", SecretRequestMode.CheckAndApply)
     ]
     let received = recordSecrets r
 
@@ -132,7 +132,7 @@ let ``Secrets are fetched right before the action``(): Task = task {
     let log = EventLog()
     let store = FakeSecretStore("S", log)
     let d = FakeResource("D", log)
-    let r = FakeResource("R", log, None, [| d |], [ store.Ref("x", SecretRequestMode.ApplyOnly) ])
+    let r = FakeResource("R", log, None, [| d |], [ store.Request("x", SecretRequestMode.ApplyOnly) ])
 
     let! report, output = runApply [ r ]
 
@@ -146,7 +146,7 @@ let ``Secrets are fetched right before the action``(): Task = task {
 let ``Apply-only secret is not fetched if the application is not required``(): Task = task {
     let log = EventLog()
     let store = FakeSecretStore("S", log)
-    let r = withSecrets "R" log [ store.Ref("x", SecretRequestMode.ApplyOnly) ]
+    let r = withSecrets "R" log [ store.Request("x", SecretRequestMode.ApplyOnly) ]
     r.IsApplied <- true
 
     let! report, output = runApply [ r ]
@@ -160,11 +160,11 @@ let ``Apply-only secret is not fetched if the application is not required``(): T
 let ``Secrets are disposed after the action``(): Task = task {
     let log = EventLog()
     let store = FakeSecretStore("S", log)
-    let secret = store.Ref("x", SecretRequestMode.CheckAndApply)
-    let r = withSecrets "R" log [ secret ]
+    let request = store.Request("x", SecretRequestMode.CheckAndApply)
+    let r = withSecrets "R" log [ request ]
     let captured = ConcurrentQueue<SecureString>()
     let capture (ctx: ResourceContext) = async {
-        let value = ctx.Secrets[secret]
+        let value = ctx.Secrets[request.Secret]
         Assert.Equal("S:x", Materialize value)
         captured.Enqueue value
     }
@@ -184,9 +184,9 @@ let ``Secrets are disposed after the action``(): Task = task {
 let ``Action may dispose its secrets itself``(): Task = task {
     let log = EventLog()
     let store = FakeSecretStore("S", log)
-    let secret = store.Ref("x", SecretRequestMode.ApplyOnly)
-    let r = withSecrets "R" log [ secret ]
-    r.OnApplyWithContext <- fun ctx -> async { ctx.Secrets[secret].Dispose() }
+    let request = store.Request("x", SecretRequestMode.ApplyOnly)
+    let r = withSecrets "R" log [ request ]
+    r.OnApplyWithContext <- fun ctx -> async { ctx.Secrets[request.Secret].Dispose() }
 
     let! report, output = runApply [ r ]
 
@@ -198,7 +198,7 @@ let ``Secret fetch failure fails only the resource requiring it``(): Task = task
     let log = EventLog()
     let store = FakeSecretStore("S", log)
     store.GetError <- Some(Exception "Fetch failure")
-    let r = withSecrets "R" log [ store.Ref("x", SecretRequestMode.CheckAndApply) ]
+    let r = withSecrets "R" log [ store.Request("x", SecretRequestMode.CheckAndApply) ]
     let dependent = FakeResource("Dependent", log, r)
     let independent = FakeResource("Independent", log)
 
@@ -224,8 +224,8 @@ let ``Store opening failure aborts the execution``(): Task = task {
     let log = EventLog()
     let a, b = FakeSecretStore("A", log), FakeSecretStore("B", log)
     b.OpenError <- Some(InvalidOperationException "Open failure")
-    let r1 = withSecrets "R1" log [ a.Ref("x", SecretRequestMode.CheckOnly) ]
-    let r2 = withSecrets "R2" log [ b.Ref("y", SecretRequestMode.CheckOnly) ]
+    let r1 = withSecrets "R1" log [ a.Request("x", SecretRequestMode.CheckOnly) ]
+    let r2 = withSecrets "R2" log [ b.Request("y", SecretRequestMode.CheckOnly) ]
 
     let! ex = Assert.ThrowsAsync<InvalidOperationException>(fun () -> runApply [ r1; r2 ] :> Task)
 
@@ -237,8 +237,8 @@ let ``Store opening failure aborts the execution``(): Task = task {
 let ``Stores are closed after all the tasks have finished``(): Task = task {
     let log = EventLog()
     let a, b = FakeSecretStore("A", log), FakeSecretStore("B", log)
-    let d = withSecrets "D" log [ a.Ref("x", SecretRequestMode.ApplyOnly) ]
-    let r = FakeResource("R", log, None, [| d |], [ b.Ref("y", SecretRequestMode.ApplyOnly) ])
+    let d = withSecrets "D" log [ a.Request("x", SecretRequestMode.ApplyOnly) ]
+    let r = FakeResource("R", log, None, [| d |], [ b.Request("y", SecretRequestMode.ApplyOnly) ])
 
     let! report, output = runApply [ r ]
 
@@ -252,7 +252,7 @@ let ``Stores are closed after all the tasks have finished``(): Task = task {
 let ``Stores are closed after a failed execution``(): Task = task {
     let log = EventLog()
     let store = FakeSecretStore("S", log)
-    let r = withSecrets "R" log [ store.Ref("x", SecretRequestMode.ApplyOnly) ]
+    let r = withSecrets "R" log [ store.Request("x", SecretRequestMode.ApplyOnly) ]
     r.ApplyError <- Some(Exception "Apply failure")
 
     let! report, output = runApply [ r ]
@@ -266,7 +266,7 @@ let ``Stores are closed after a cancelled execution``(): Task = task {
     let log = EventLog()
     let store = FakeSecretStore("S", log)
     let applyStarted = TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
-    let r = withSecrets "R" log [ store.Ref("x", SecretRequestMode.ApplyOnly) ]
+    let r = withSecrets "R" log [ store.Request("x", SecretRequestMode.ApplyOnly) ]
     r.OnApply <- fun () -> async {
         applyStarted.SetResult()
         do! Async.Sleep(TimeSpan.FromSeconds 10.0)
@@ -290,7 +290,7 @@ let ``Stores are compared by reference``(): Task = task {
     let log = EventLog()
     let a, b = EqualToEverythingStore("A", log), EqualToEverythingStore("B", log)
     Assert.True(a.Equals b)
-    let r = withSecrets "R" log [ a.Ref("x", SecretRequestMode.CheckOnly); b.Ref("x", SecretRequestMode.CheckOnly) ]
+    let r = withSecrets "R" log [ a.Request("x", SecretRequestMode.CheckOnly); b.Request("x", SecretRequestMode.CheckOnly) ]
     let received = recordSecrets r
 
     let! report, output = runCheck [ r ]
@@ -307,8 +307,11 @@ let ``Stores are compared by reference``(): Task = task {
 let ``Secret references with equal contents are different keys``(): Task = task {
     let log = EventLog()
     let store = FakeSecretStore("S", log)
-    let first, second = store.Ref("x", SecretRequestMode.CheckOnly), store.Ref("x", SecretRequestMode.CheckOnly)
-    let r = withSecrets "R" log [ first; second ]
+    let first, second = store.Ref "x", store.Ref "x"
+    let r = withSecrets "R" log [
+        { Secret = first; Mode = SecretRequestMode.CheckOnly }
+        { Secret = second; Mode = SecretRequestMode.CheckOnly }
+    ]
     let mutable count = 0
     r.OnCheckWithContext <- fun ctx -> async {
         count <- ctx.Secrets.Count
@@ -327,8 +330,11 @@ let ``Secret references with equal contents are different keys``(): Task = task 
 let ``The same secret reference listed twice is fetched once``(): Task = task {
     let log = EventLog()
     let store = FakeSecretStore("S", log)
-    let secret = store.Ref("x", SecretRequestMode.CheckOnly)
-    let r = withSecrets "R" log [ secret; secret ]
+    let secret = store.Ref "x"
+    let r = withSecrets "R" log [
+        { Secret = secret; Mode = SecretRequestMode.CheckOnly }
+        { Secret = secret; Mode = SecretRequestMode.CheckAndApply }
+    ]
 
     let! report, output = runCheck [ r ]
 

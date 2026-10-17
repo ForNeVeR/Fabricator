@@ -17,7 +17,7 @@ open Fabricator.Core
 open Fabricator.Resources.ResourceUtil
 
 /// <summary>
-/// A DNS record managed by <see cref="M:Fabricator.Resources.DigitalOceanDns.Domain(System.String,Fabricator.Core.ISecretStore,Fabricator.Core.SecretName,System.Collections.Generic.IEnumerable{Fabricator.Resources.DigitalOceanDnsRecord},Microsoft.FSharp.Core.FSharpOption{System.Collections.Generic.IEnumerable{Fabricator.Core.Resource}})"/>. Use
+/// A DNS record managed by <see cref="M:Fabricator.Resources.DigitalOceanDns.Domain(System.String,Fabricator.Core.SecretRef,System.Collections.Generic.IEnumerable{Fabricator.Resources.DigitalOceanDnsRecord},Microsoft.FSharp.Core.FSharpOption{System.Collections.Generic.IEnumerable{Fabricator.Core.Resource}})"/>. Use
 /// <see cref="M:Fabricator.Resources.DigitalOceanDns.Record(System.String,System.String,System.String,Microsoft.FSharp.Core.FSharpOption{System.Int32},Microsoft.FSharp.Core.FSharpOption{System.Int32},Microsoft.FSharp.Core.FSharpOption{System.Int32},Microsoft.FSharp.Core.FSharpOption{System.Int32},Microsoft.FSharp.Core.FSharpOption{System.Int32},Microsoft.FSharp.Core.FSharpOption{System.String})"/> to create one.
 /// </summary>
 type DigitalOceanDnsRecord =
@@ -409,7 +409,7 @@ module internal DigitalOceanDnsApi =
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="M:Fabricator.Resources.DigitalOceanDns.Domain(System.String,Fabricator.Core.ISecretStore,Fabricator.Core.SecretName,System.Collections.Generic.IEnumerable{Fabricator.Resources.DigitalOceanDnsRecord},Microsoft.FSharp.Core.FSharpOption{System.Collections.Generic.IEnumerable{Fabricator.Core.Resource}})"/>
+/// <see cref="M:Fabricator.Resources.DigitalOceanDns.Domain(System.String,Fabricator.Core.SecretRef,System.Collections.Generic.IEnumerable{Fabricator.Resources.DigitalOceanDnsRecord},Microsoft.FSharp.Core.FSharpOption{System.Collections.Generic.IEnumerable{Fabricator.Core.Resource}})"/>
 /// manages all the DNS records of a domain: when applied, it updates the changed records in place, deletes the records
 /// not declared, and creates the missing ones. The SOA and NS records of the domain itself (<c>@</c>) are managed by
 /// DigitalOcean and are ignored. The changes are shown as a diff of the records in the zone file format.
@@ -434,7 +434,7 @@ module internal DigitalOceanDnsApi =
 /// let secrets = KeePassSecretStore(AbsolutePath @"C:\Secrets\infra.kdbx")
 /// let dns = DigitalOceanDns.Domain(
 ///     "example.com",
-///     secrets, SecretName "digitalocean-token",
+///     { Store = secrets; Name = SecretName "digitalocean-token" },
 ///     [
 ///         DigitalOceanDns.Record("TXT", "@", "mytext")
 ///     ]
@@ -443,7 +443,7 @@ module internal DigitalOceanDnsApi =
 /// </example>
 type DigitalOceanDns =
 
-    /// <summary>Creates a DNS record to pass to <see cref="M:Fabricator.Resources.DigitalOceanDns.Domain(System.String,Fabricator.Core.ISecretStore,Fabricator.Core.SecretName,System.Collections.Generic.IEnumerable{Fabricator.Resources.DigitalOceanDnsRecord},Microsoft.FSharp.Core.FSharpOption{System.Collections.Generic.IEnumerable{Fabricator.Core.Resource}})"/>.</summary>
+    /// <summary>Creates a DNS record to pass to <see cref="M:Fabricator.Resources.DigitalOceanDns.Domain(System.String,Fabricator.Core.SecretRef,System.Collections.Generic.IEnumerable{Fabricator.Resources.DigitalOceanDnsRecord},Microsoft.FSharp.Core.FSharpOption{System.Collections.Generic.IEnumerable{Fabricator.Core.Resource}})"/>.</summary>
     /// <param name="recordType">The record type: A, AAAA, CAA, CNAME, MX, NS, SRV, or TXT.</param>
     /// <param name="name">The name of the record, relative to the domain; <c>@</c> denotes the domain itself.</param>
     /// <param name="data">
@@ -485,8 +485,7 @@ type DigitalOceanDns =
 
     static member internal Create(
         domain: string,
-        tokenStore: ISecretStore,
-        tokenName: SecretName,
+        token: SecretRef,
         records: DigitalOceanDnsRecord seq,
         dependsOn: Resource seq option,
         handler: HttpMessageHandler option
@@ -497,7 +496,6 @@ type DigitalOceanDns =
         DigitalOceanDnsZone.validate domain records
         let desired = records |> Array.map DigitalOceanDnsZone.clean
 
-        let token = { Store = tokenStore; Name = tokenName; RequestMode = SecretRequestMode.CheckAndApply }
         let openClient(ctx: ResourceContext) =
             use secret = ctx.Secrets[token]
             DigitalOceanDnsApi.createClient handler secret
@@ -518,7 +516,7 @@ type DigitalOceanDns =
             PresentableName = $"DigitalOcean DNS records of \"{domain}\""
             DependsOn = dependencies dependsOn
             Lock = Some(DigitalOceanDns.ConcurrencyGroup domain)
-            Secrets = ImmutableArray.Create token
+            Secrets = ImmutableArray.Create { Secret = token; Mode = SecretRequestMode.CheckAndApply }
 
             AlreadyApplied = fun ctx -> async {
                 use client = openClient ctx
@@ -584,8 +582,7 @@ type DigitalOceanDns =
     /// <param name="domain">
     /// The domain name, e.g. <c>example.com</c>. It should already be added to DigitalOcean.
     /// </param>
-    /// <param name="tokenStore">The secret store to get the DigitalOcean API token from.</param>
-    /// <param name="tokenName">The name of the DigitalOcean API token in the store.</param>
+    /// <param name="token">The DigitalOcean API token in a secret store.</param>
     /// <param name="records">
     /// All the records the domain should have, created via <see cref="M:Fabricator.Resources.DigitalOceanDns.Record(System.String,System.String,System.String,Microsoft.FSharp.Core.FSharpOption{System.Int32},Microsoft.FSharp.Core.FSharpOption{System.Int32},Microsoft.FSharp.Core.FSharpOption{System.Int32},Microsoft.FSharp.Core.FSharpOption{System.Int32},Microsoft.FSharp.Core.FSharpOption{System.Int32},Microsoft.FSharp.Core.FSharpOption{System.String})"/>.
     /// </param>
@@ -617,9 +614,8 @@ type DigitalOceanDns =
     /// </remarks>
     static member Domain(
         domain: string,
-        tokenStore: ISecretStore,
-        tokenName: SecretName,
+        token: SecretRef,
         records: DigitalOceanDnsRecord seq,
         ?dependsOn: Resource seq
     ): Resource =
-        DigitalOceanDns.Create(domain, tokenStore, tokenName, records, dependsOn, None)
+        DigitalOceanDns.Create(domain, token, records, dependsOn, None)

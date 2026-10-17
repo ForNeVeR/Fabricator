@@ -105,28 +105,31 @@ let lower (mode: ExecutionMode) (roots: Resource seq): TaskExecutor.TaskGraph<Lo
 
     tasks
 
-let private isRequiredFor (kind: TaskKind) (secret: SecretRef) =
-    match kind, secret.RequestMode with
+let private isRequiredFor (kind: TaskKind) (request: SecretRequest) =
+    match kind, request.Mode with
     | Check, (SecretRequestMode.CheckOnly | SecretRequestMode.CheckAndApply) -> true
     | Apply, (SecretRequestMode.ApplyOnly | SecretRequestMode.CheckAndApply) -> true
     | Check, SecretRequestMode.ApplyOnly | Apply, SecretRequestMode.CheckOnly -> false
 
 /// The secrets required by the task's resource action.
 let secretsFor(task: LoweredTask): SecretRef seq =
-    task.Resource.Secrets |> Seq.filter (isRequiredFor task.Kind)
+    task.Resource.Secrets |> Seq.filter (isRequiredFor task.Kind) |> Seq.map _.Secret
 
 /// <summary>
 /// The secrets that might be required by the execution of the resources in the <paramref name="mode"/>, in the order
 /// of the resources.
 /// </summary>
+/// <param name="mode">Execution mode of the current operation.</param>
+/// <param name="resources">The resources in scope of the current operation.</param>
 let secretsToOpen (mode: ExecutionMode) (resources: Resource seq): SecretRef seq =
     resources
     |> Seq.collect _.Secrets
-    |> Seq.filter (fun secret ->
+    |> Seq.filter (fun request ->
         match mode with
-        | CheckOnly -> isRequiredFor Check secret
+        | CheckOnly -> isRequiredFor Check request
         | CheckAndApply -> true
     )
+    |> Seq.map _.Secret
 
 let private isFailure = function
     | Errored _ | Blocked -> true

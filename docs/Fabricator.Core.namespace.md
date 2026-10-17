@@ -22,11 +22,11 @@ Use [`ResourceContext.Null`][resource-context-null] to call the resource functio
 
 Secrets
 -------
-If a resource requires secrets (passwords, access tokens, etc.), it should list them in [`Resource.Secrets`][resource-secrets]. Each [`SecretRef`][secret-ref] names a secret in an [`ISecretStore`][secret-store], and defines which operations of the resource require it: the check, the application, or both.
+If a resource requires secrets (passwords, access tokens, etc.), it should list them in [`Resource.Secrets`][resource-secrets]. Each [`SecretRequest`][secret-request] contains a [`SecretRef`][secret-ref] naming a secret in an [`ISecretStore`][secret-store], and defines which operations of the resource require it: the check, the application, or both. Resources taking secrets from the user should accept them as `SecretRef`s, and decide themselves which operations require them.
 
 The secrets are handled the following way:
 1. Before checking or applying anything, Fabricator opens every store that might be required by the execution, one by one. While opening, a store may interact with the user via [`ISecretStoreUi`][secret-store-ui], e.g. to ask for its own password. It also receives the names of the secrets it's about to be asked for, which it may use to prefetch them (not recommended for the purpose of security, but can be done). If any store fails to open, nothing is checked or applied.
-2. Right before an operation starts, the secrets it requires are fetched from the opened stores, and passed to it via [`ResourceContext.Secrets`][resource-context-secrets]. If a secret fails to be fetched, the operation fails.
+2. Right before an operation starts, the secrets it requires are fetched from the opened stores, and passed to it via [`ResourceContext.Secrets`][resource-context-secrets], by their `SecretRef`s. If a secret fails to be fetched, the operation fails.
 3. Right after the operation finishes, its secrets are disposed automatically. Every secret string is single-use: the operation is encouraged to dispose it as soon as it's not needed anymore, even before the operation finishes.
 4. After all the operations have finished, the opened stores are closed.
 
@@ -43,6 +43,7 @@ Note that [`SecureString`][secure-string] in the API provides little actual prot
 [resource-context-secrets]: xref:Fabricator.Core.ResourceContext.Secrets
 [resource-secrets]: xref:Fabricator.Core.Resource.Secrets
 [secret-ref]: xref:Fabricator.Core.SecretRef
+[secret-request]: xref:Fabricator.Core.SecretRequest
 [secret-store]: xref:Fabricator.Core.ISecretStore
 [secret-store-ui]: xref:Fabricator.Core.ISecretStoreUi
 [plain-secret-store]: xref:Fabricator.Core.PlainSecretStore
