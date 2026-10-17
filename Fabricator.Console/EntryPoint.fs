@@ -134,7 +134,7 @@ let internal run (ui: ExecutionUi.IExecutionUi) (args: string seq) (resources: R
 /// <para>
 /// With the <c>--dry-run</c> flag, the checks and applications are only listed, in the order of the report, without
 /// performing any of them or opening the secret stores. This allows quickly verifying (e.g. on CI) that the script
-/// compiles and is able to call the actions.
+/// compiles and builds its resources; it doesn't verify that the resource checks or applications would succeed.
 /// </para>
 /// </remarks>
 /// <param name="args">
