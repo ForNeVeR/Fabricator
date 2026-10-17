@@ -65,13 +65,18 @@ let private dryRun (ui: ExecutionUi.IExecutionUi) (mode: Lowering.ExecutionMode)
         match mode with
         | Lowering.CheckOnly -> "Dry run: listing the actions to check the current environment."
         | Lowering.CheckAndApply -> "Dry run: listing the actions to apply the changes to the current environment."
-    try
-        ui.WriteDryRun(header, DryRun.create mode resources)
-        ExitCodes.Success
-    with
-    | ex ->
-        eprintfn $"Failed to write the actions: {ex}"
+    match (try Ok(DryRun.create mode resources) with ex -> Error ex) with
+    | Error ex ->
+        eprintfn $"Failed to list the actions: {ex}"
         ExitCodes.ExecutionError
+    | Ok plan ->
+        try
+            ui.WriteDryRun(header, plan)
+            ExitCodes.Success
+        with
+        | ex ->
+            eprintfn $"Failed to write the actions: {ex}"
+            ExitCodes.ExecutionError
 
 /// Like <see cref="M:Fabricator.Console.EntryPoint.main"/>, but with the passed UI.
 let internal run (ui: ExecutionUi.IExecutionUi) (args: string seq) (resources: Resource seq): int =

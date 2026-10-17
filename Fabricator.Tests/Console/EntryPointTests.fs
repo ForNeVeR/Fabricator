@@ -163,3 +163,13 @@ let ``Dry run output failure results in an execution error``(command: string): u
     let r = FakeResource("R", EventLog())
     let exitCode = EntryPoint.run (ExecutionUi.PlainUi(new FailingWriter())) [ command; "--dry-run" ] [ r.Resource ]
     Assert.Equal(EntryPoint.ExitCodes.ExecutionError, exitCode)
+
+[<Theory>]
+[<InlineData "check">]
+[<InlineData "apply">]
+let ``Dry run listing failure results in an execution error without output``(command: string): unit =
+    let resources: Resource seq = seq { failwith "Broken resources." }
+    use output = new StringWriter()
+    let exitCode = EntryPoint.run (ExecutionUi.PlainUi output) [ command; "--dry-run" ] resources
+    Assert.Equal(EntryPoint.ExitCodes.ExecutionError, exitCode)
+    Assert.Equal("", output.ToString())
