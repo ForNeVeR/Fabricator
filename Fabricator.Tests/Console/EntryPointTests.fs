@@ -10,6 +10,7 @@ open Fabricator.Console
 open Fabricator.Core
 open Fabricator.Core.Secrets
 open Fabricator.Tests.FakeResource
+open Fabricator.Tests.TestWriters
 open Xunit
 
 [<Fact>]
@@ -94,11 +95,6 @@ let ``Store opening failure results in an execution error``(): unit =
 let ``Unknown flag is an argument error``(): unit =
     let exitCode, _ = runWithChange [ "check"; "--bogus" ]
     Assert.Equal(EntryPoint.ExitCodes.InvalidArgs, exitCode)
-
-/// A writer with an encoding unable to represent emoji, so the ASCII markers are written.
-type private AsciiWriter() =
-    inherit StringWriter()
-    override _.Encoding = Encoding.ASCII
 
 let private runDryRun (args: string list) =
     let log = EventLog()

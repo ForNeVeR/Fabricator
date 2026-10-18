@@ -12,6 +12,7 @@ open Fabricator.Console
 open Fabricator.Core
 open Fabricator.Core.Secrets
 open Fabricator.Tests.FakeResource
+open Fabricator.Tests.TestWriters
 open Spectre.Console
 open Xunit
 
@@ -150,11 +151,6 @@ let private sampleReportLines(useEmoji: bool) =
 
 let private lines(text: string) =
     text.Split('\n') |> Seq.map _.TrimEnd('\r') |> Seq.filter (fun line -> line <> "") |> Seq.toList
-
-/// A writer with an encoding unable to represent emoji.
-type private AsciiWriter() =
-    inherit StringWriter()
-    override _.Encoding = System.Text.Encoding.ASCII
 
 /// A writer with the UTF-8 encoding.
 type private Utf8Writer() =
