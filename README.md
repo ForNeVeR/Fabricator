@@ -36,8 +36,8 @@ Add `--dry-run` to either command (e.g. `dotnet fsi ./script.fsx apply --dry-run
 Quick script example:
 
 ```fsharp
-#r "nuget: FVNever.Fabricator.Console, 0.5.0"
-#r "nuget: FVNever.Fabricator.Resources, 0.5.0"
+#r "nuget: FVNever.Fabricator.Console, 0.6.0"
+#r "nuget: FVNever.Fabricator.Resources, 0.6.0"
 
 open System
 open System.IO
