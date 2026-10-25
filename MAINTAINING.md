@@ -39,4 +39,5 @@ This repository relies on [NuGet Trusted Publishing][docs.nuget-trusted-publishi
 When introducing a new package, you can adjust the policy temporarily to allow it to **push new packages and package versions**.
 
 [docs.nuget-trusted-publishing]: https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
+[github.secrets]: https://github.com/ForNeVeR/Fabricator/settings/secrets/actions
 [nuget.trusted-publishing]: https://www.nuget.org/account/trustedpublishing
