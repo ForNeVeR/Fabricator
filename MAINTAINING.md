@@ -16,7 +16,7 @@ Publish a New Version
 5. Run the `scripts/Update-Version.ps1` script with the argument `-NewVersion <the new version>`. It will update all the various places where the new version should be used.
 6. Prepare a corresponding entry in the `CHANGELOG.md` file (usually by renaming the "Unreleased" section).
 7. Merge the aforementioned changes via a pull request.
-8. If you want to publish a new package (not a new version, but a new project/package) change the NuGet Trusted Publishing Policy: switch from **push only new packages versions** to **push new packages and package versions** (see above for more details).
+8. If you want to publish a new package (not a new version, but a new project/package) change the NuGet Trusted Publishing Policy: switch from **push only new packages versions** to **push new packages and package versions** (see below for more details).
 9. Push a tag in form of `v<VERSION>`, e.g. `v0.0.0`. GitHub Actions will do the rest (push the NuGet packages).
 10. If you were publishing a new package, revert back the change you did at step 8.
 
