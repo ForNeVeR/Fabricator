@@ -419,7 +419,7 @@ module internal DigitalOceanDnsApi =
 /// <a href="https://docs.digitalocean.com/reference/api/create-personal-access-token/">personal access token</a>:
 /// generate it in the DigitalOcean control panel, in <b>API</b> → <b>Tokens</b> → <b>Generate New Token</b>
 /// (https://cloud.digitalocean.com/account/api/tokens). Give it either full access, or the custom scopes
-/// <c>domain:read</c>, <c>domain:create</c>, and <c>domain:delete</c>.
+/// <c>domain:read</c>, <c>domain:create</c>, <c>domain:update</c>, and <c>domain:delete</c>.
 /// </para>
 /// </remarks>
 /// <example>
